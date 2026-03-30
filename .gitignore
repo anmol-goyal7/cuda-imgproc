@@ -1,0 +1,58 @@
+# Build output
+build/
+bin/
+lib/
+obj/
+
+# Compiled objects
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.exe
+*.out
+
+# CUDA compiled
+*.cubin
+*.ptx
+*.fatbin
+*.gpu
+
+# Generated images (in build dirs)
+build/**/*.png
+build/**/*.jpg
+build/**/*.ppm
+build/**/*.bmp
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Profiling
+*.nsys-rep
+*.ncu-rep
+*.qdrep
+*.sqlite
+
+# Dependency files
+*.d
