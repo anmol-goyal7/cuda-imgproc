@@ -184,8 +184,4 @@ Every operation will be benchmarked with three implementations to show where GPU
 
 ## Author
 
-**Anmol Goyal**
-B.Tech CSE, SRM Institute of Science and Technology
-
-- GitHub: [anmol-goyal7](https://github.com/anmol-goyal7)
-- Portfolio: [anmol-goyal7.github.io](https://anmol-goyal7.github.io)
+**Anmol Goyal** — [anmol-goyal7.github.io](https://anmol-goyal7.github.io)
