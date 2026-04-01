@@ -581,4 +581,4 @@ B.Tech CSE, SRM Institute of Science and Technology
 
 ---
 
-*This repository contains project documentation and planned architecture. Implementation will begin once GPU cluster access is approved.*
+*This repository contains project documentation and planned architecture. Implementation will begin soon.*
