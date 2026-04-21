@@ -2,7 +2,7 @@
 
 **A header-only C++17/CUDA library for GPU-accelerated image processing, built from scratch with no external dependencies.**
 
-![Build Status](https://img.shields.io/badge/build-planned-lightgrey)
+![Build Status](https://img.shields.io/badge/build-in--progress-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/C%2B%2B17%2FCUDA-green)
 
@@ -14,7 +14,7 @@ Image processing operations — convolution, histogram equalization, augmentatio
 
 **The problem is speed.**
 
-A single 1024x1024 RGB image has over 3 million pixel values. A 2D convolution with a 5x5 kernel requires 75 multiply-add operations *per output pixel* — that's 78 million floating-point operations for one image. Now multiply that by 10,000 images in a training batch. On a CPU, these operations run sequentially: one pixel after another, one image after another. A batch augmentation step that should take milliseconds ends up taking minutes.
+A single 1024×1024 RGB image has over 3 million pixel values. A 2D convolution with a 5×5 kernel requires 75 multiply-add operations *per output pixel* — that's 78 million floating-point operations for one image. Now multiply that by 10,000 images in a training batch. On a CPU, these operations run sequentially: one pixel after another, one image after another. A batch augmentation step that should take milliseconds ends up taking minutes.
 
 **The opportunity is parallelism.**
 
@@ -30,7 +30,7 @@ OpenCV has a CUDA module, and it's excellent. But it's also 2+ million lines of 
 
 ## What I'm Building
 
-The library will implement a 4-stage image processing pipeline. Each stage introduces progressively more advanced CUDA concepts, from basic thread indexing to shared memory tiling to atomic operations and parallel scans.
+The library implements a 4-stage image processing pipeline. Each stage introduces progressively more advanced CUDA concepts, from basic thread indexing to shared memory tiling to atomic operations and parallel scans.
 
 ```mermaid
 flowchart LR
@@ -43,6 +43,8 @@ flowchart LR
     style A fill:#f9f,stroke:#333
     style F fill:#9f9,stroke:#333
 ```
+
+---
 
 ### Stage 1: Color Space Conversion
 
@@ -81,7 +83,7 @@ This stage introduces 2D thread grids and the importance of memory access patter
 This is the most important operation in the library. 2D convolution is what every convolutional layer in a CNN does — it slides a small kernel over the image and computes a weighted sum at each position. It's also the operation where naive GPU code leaves the most performance on the table.
 
 **Planned operations:**
-- Generic 2D convolution with configurable kernel size (3x3, 5x5, 7x7, ...)
+- Generic 2D convolution with configurable kernel size (3×3, 5×5, 7×7, ...)
 - Gaussian blur
 - Sobel edge detection (horizontal and vertical gradients)
 - Laplacian edge detection
@@ -101,7 +103,7 @@ Histogram equalization enhances image contrast by redistributing pixel intensiti
 2. **Compute CDF via prefix sum** — a parallel scan over the histogram, one of the fundamental GPU primitives that shows up in sorting, stream compaction, and many other algorithms
 3. **Remap pixel values** — apply the normalized CDF as a lookup table
 
-**Possible extension — CLAHE:** Contrast Limited Adaptive Histogram Equalization, which operates on local tiles rather than the full image. Used in medical imaging and satellite imagery for local contrast enhancement.
+**Possible extension — CLAHE:** Contrast Limited Adaptive Histogram Equalization, which operates on local tiles rather than the full image. Used in satellite imagery and computer vision pipelines for local contrast enhancement.
 
 ---
 
@@ -116,7 +118,7 @@ Every operation will be benchmarked with three implementations to show where GPU
 | **CUDA GPU** | Full GPU kernel with appropriate optimizations |
 
 **What will be measured:**
-- Per-image latency at increasing resolutions (256x256 up to 4096x4096)
+- Per-image latency at increasing resolutions (256×256 up to 4096×4096)
 - Batch throughput (images/second) at various batch sizes
 - GPU kernel time both with and without host-device memory transfer overhead
 - Speedup curves, latency vs resolution, throughput comparisons
@@ -160,8 +162,8 @@ Every operation will be benchmarked with three implementations to show where GPU
 
 ## Project Status
 
-- [ ] Project structure and documentation  **<-- current**
-- [ ] Color space conversion kernels (RGB to Gray, RGB to HSV)
+- [x] Project structure and documentation
+- [ ] Color space conversion kernels (RGB→Gray, RGB→HSV) **← current**
 - [ ] Image augmentation kernels (flip, rotate, resize)
 - [ ] 2D convolution with shared memory optimization
 - [ ] Histogram equalization with atomic operations
