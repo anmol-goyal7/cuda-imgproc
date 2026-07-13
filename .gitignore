@@ -17,3 +17,4 @@ test_image.png
 # profiler artifacts
 *.nsys-rep
 *.ncu-rep
+compile_flags.txt
