@@ -8,7 +8,9 @@
 //
 //     #include "cuda_imgproc.hpp"
 
+#include "cuda_imgproc/core/filters.hpp"
 #include "cuda_imgproc/core/image.hpp"
+#include "cuda_imgproc/cpu/ops.hpp"
 
 #ifdef __CUDACC__
 #include "cuda_imgproc/core/cuda_check.cuh"
