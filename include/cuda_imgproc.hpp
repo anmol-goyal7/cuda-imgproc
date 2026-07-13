@@ -19,4 +19,5 @@
 #include "cuda_imgproc/kernels/augment.cuh"
 #include "cuda_imgproc/kernels/color.cuh"
 #include "cuda_imgproc/kernels/convolution.cuh"
+#include "cuda_imgproc/kernels/histogram.cuh"
 #endif
