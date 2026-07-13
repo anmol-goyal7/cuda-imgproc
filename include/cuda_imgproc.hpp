@@ -16,5 +16,6 @@
 #ifdef __CUDACC__
 #include "cuda_imgproc/core/cuda_check.cuh"
 #include "cuda_imgproc/core/gpu_buffer.cuh"
+#include "cuda_imgproc/kernels/augment.cuh"
 #include "cuda_imgproc/kernels/color.cuh"
 #endif
