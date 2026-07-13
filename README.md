@@ -1,5 +1,7 @@
 # cuda-imgproc
 
+[![ci](https://github.com/anmol-goyal7/cuda-imgproc/actions/workflows/ci.yml/badge.svg)](https://github.com/anmol-goyal7/cuda-imgproc/actions/workflows/ci.yml)
+
 A header-only C++17/CUDA image-processing library built from first principles: four stages of classic operations, each implemented as readable, heavily commented kernels alongside bit-matching CPU references and an honest benchmark harness.
 
 ## Why this exists
@@ -10,7 +12,7 @@ This library inverts the trade-off. Every kernel is small enough to read in one 
 
 ## Quickstart
 
-Requirements: CUDA Toolkit (nvcc, tested on 12.x, sm_75+), g++ with C++17 and OpenMP, GNU Make. No other dependencies — stb_image is vendored in `third_party/`.
+Requirements: CUDA Toolkit (nvcc, tested on 12.x, sm_75+), g++ with C++17 and OpenMP, GNU Make; Python 3 (stdlib only) for `make readme-results`. No other dependencies — stb_image is vendored in `third_party/`.
 
 ```cpp
 // demo.cu
@@ -73,7 +75,7 @@ Where bit-exactness is claimed it is *engineered*, not hoped for: both sides eva
 * Every measurement: **10 warm-up iterations, then 100 timed runs; the CSV records the median, stdout adds the standard deviation.** (Exception, documented in the harness: the CPU sides of the 100-image batch rows use 5 timed runs, each already spanning 100 images.)
 * **GPU kernel-only** time via `cudaEvent` pairs around the launch — device-clock timestamps, excluding transfers and launch latency. **GPU wall** time via `std::chrono` around upload + kernel + download, recorded separately, so PCIe cost is visible instead of hidden.
 * CPU single-thread and OpenMP (all logical cores) via `std::chrono`.
-* Ops: `rgb_to_gray`, `gaussian5x5` (tiled *and* naive), bilinear resize 4096²→1024², `equalize_hist`, plus batch mode — 100 images at 1024² — reported as per-image time and images/s for `rgb_to_gray` and `gaussian5x5`.
+* Ops: `rgb_to_gray`, `gaussian5x5` (tiled *and* naive), bilinear resize 4096²→1024², `equalize_hist`, plus batch mode — 100 images at 1024² — reported as per-image time and images/s for `rgb_to_gray` and `gaussian5x5`. The batch kernel column cycles through 100 *distinct* device-resident inputs, so L2 cannot replay one hot image across launches.
 * The harness prints the device name, SM count and memory clock, and stamps them into the CSV header.
 
 Reproduce: `colab/README.md` (one pasted cell on a free Colab T4), then `make readme-results` locally. `make bench-cpu` runs the CPU side alone on any machine.
@@ -125,7 +127,7 @@ For a 5×5 kernel (radius r=2) with 16×16 tiles, per block:
 * naive: 256 threads × 25 reads = **6400 global-memory reads**
 * tiled: one cooperative load of the (16+2r)×(16+2r) = 20×20 input tile = **400 global reads** (the 16×16 core plus the r-wide halo ring), then all 6400 window reads hit shared memory
 
-That is a **16× reduction in global traffic** (6400/400), bought with 484 bytes of shared memory and one `__syncthreads()`. The naive kernel is kept on purpose: modern L1/L2 caches absorb part of the redundancy, so the *measured* gap (see the benchmark's `gaussian5x5_tiled` vs `gaussian5x5_naive` rows) is real but smaller than 16× — the difference between transaction arithmetic and delivered performance is itself the lesson.
+That is a **16× reduction in *requested* global traffic** (6400/400), bought with 484 bytes of shared memory and one `__syncthreads()`. The naive kernel is kept on purpose, because the measured story (the `gaussian5x5_tiled` vs `gaussian5x5_naive` rows above) is more interesting than the arithmetic: on the T4, tiling wins at 256²–1024² but **loses to the naive kernel at 2048² and 4096²**. The redundant reads the arithmetic counts mostly never reach DRAM — neighboring threads' overlapping windows hit L1/L2 at high rates, so the naive kernel approaches the streaming minimum anyway, while the tiled kernel keeps paying its fixed costs (halo loads, the barrier). The gap between transaction arithmetic and delivered performance — including the fact that its *sign* depends on image size and cache behavior — is itself the lesson: derive the bound, then measure.
 
 ## How to run everything
 
@@ -170,12 +172,15 @@ tools/make_test_image.cpp      synthetic gradient+noise PNG generator
 scripts/render_results.py      CSV → README/results tables (idempotent)
 colab/                         one-cell T4 runner + instructions
 results/                       committed benchmark CSVs + generated summary.md
+.github/workflows/ci.yml       CPU test suite + render idempotency, every push
 ```
 
 ## Limitations & future work
 
 * **Transfers dominate single-image latency.** Kernels are microseconds; PCIe copies are milliseconds. CUDA streams overlapping H2D/compute/D2H across a batch would hide most of that and is the natural next chapter.
-* **uint8 only, 1 or 3 channels, no strides/ROI.** Deliberate: format generality multiplies code without adding concepts.
+* **uint8 only, 1 or 3 channels, no strides/ROI.** Deliberate: format generality multiplies code without adding concepts. The Image-level API validates its inputs and throws on the wrong shape rather than reading out of bounds.
+* **32-bit indexing in the host wrappers.** Images are limited to 2³¹ pixels (histogram equalization: 2³²−1); the wrappers check and throw instead of silently wrapping. Nobody benchmarks 2-gigapixel PNGs, but the limit is now stated rather than lurking.
+* **Resize is plain bilinear.** Center-aligned sampling (the OpenCV/PIL convention), but downscales beyond ~2× still alias — only 4 source taps feed each output pixel. Area averaging is the standard fix and a natural extension.
 * **FP16 / Tensor Cores unexplored.** Convolution as WMMA matrix ops (or FP16x2 arithmetic) is the modern performance path and a planned extension.
 * **No Python bindings.** nanobind + a zero-copy PyTorch tensor interface would let the kernels drop into real training pipelines.
 * **Single-GPU, synchronous host API.** Multi-GPU splitting and a stream-carrying async API are out of scope for the teaching core.
