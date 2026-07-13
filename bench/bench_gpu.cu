@@ -23,9 +23,10 @@
 //     figure; compare against gpu_wall_ms yourself to see transfer overhead)
 //
 // Batch rows (op suffix "_batch100"): per-image figures over a 100-image
-// batch. The kernel column launches 100 kernels back to back (events around
-// the whole burst, /100) — showing launch-overhead amortization; the wall
-// column re-uploads and downloads every image.
+// batch. The kernel column launches 100 kernels back to back over 100
+// *distinct* device-resident images (events around the whole burst, /100) —
+// launch-overhead amortization without letting L2 replay a single hot input;
+// the wall column re-uploads and downloads every image.
 
 #include <algorithm>
 #include <chrono>
@@ -280,10 +281,20 @@ void bench_batch() {
         r.cpu_1t = {c1.median_ms / count, c1.stddev_ms / count};
         r.omp = {co.median_ms / count, co.stddev_ms / count};
 
+        // All 100 inputs resident on the device (~300 MB), so every launch in
+        // the timed burst reads a *different* image. Cycling one buffer would
+        // let the whole working set live in L2 across launches and flatter
+        // the per-kernel figure — a pipeline over distinct images gets no
+        // such replay.
+        std::vector<cig::GpuBuffer<std::uint8_t>> d_ins;
+        d_ins.reserve(count);
+        for (const auto& im : imgs) {
+            d_ins.emplace_back(n * 3);
+            d_ins.back().copy_from_host(im.data.data(), n * 3);
+        }
         cig::GpuBuffer<std::uint8_t> d_in(n * 3), d_out(n);
-        d_in.copy_from_host(imgs[0].data.data(), n * 3);
         const Stats gk = time_gpu_kernel_ms([&] {
-            for (int i = 0; i < count; ++i) cig::rgb_to_gray(d_in, d_out, w, h);
+            for (int i = 0; i < count; ++i) cig::rgb_to_gray(d_ins[i], d_out, w, h);
         });
         const Stats gw = time_host_ms([&] {
             for (const auto& im : imgs) {
@@ -325,10 +336,18 @@ void bench_batch() {
         r.cpu_1t = {c1.median_ms / count, c1.stddev_ms / count};
         r.omp = {co.median_ms / count, co.stddev_ms / count};
 
+        // Distinct device-resident inputs, same reasoning as the rgb_to_gray
+        // batch above — with 1 MB grayscale images the L2-replay flattery
+        // would otherwise be at its worst (input + output fit entirely).
+        std::vector<cig::GpuBuffer<std::uint8_t>> d_ins;
+        d_ins.reserve(count);
+        for (const auto& im : imgs) {
+            d_ins.emplace_back(n);
+            d_ins.back().copy_from_host(im.data.data(), n);
+        }
         cig::GpuBuffer<std::uint8_t> d_in(n), d_out(n);
-        d_in.copy_from_host(imgs[0].data.data(), n);
         const Stats gk = time_gpu_kernel_ms([&] {
-            for (int i = 0; i < count; ++i) cig::convolve2d_tiled(d_in, d_out, w, h, k);
+            for (int i = 0; i < count; ++i) cig::convolve2d_tiled(d_ins[i], d_out, w, h, k);
         });
         const Stats gw = time_host_ms([&] {
             for (const auto& im : imgs) {
@@ -354,7 +373,7 @@ std::string sanitize(const char* name) {
 
 }  // namespace
 
-int main() {
+int main() try {
     int dev = 0;
     CUDA_CHECK(cudaGetDevice(&dev));
     cudaDeviceProp prop{};
@@ -406,4 +425,9 @@ int main() {
     csv.close();
     std::printf("\nwrote %s\n", path.c_str());
     return 0;
+} catch (const std::exception& e) {
+    // CUDA_CHECK and the filesystem/CSV writes throw; fail with the message
+    // rather than a std::terminate backtrace.
+    std::fprintf(stderr, "bench_gpu failed: %s\n", e.what());
+    return 1;
 }

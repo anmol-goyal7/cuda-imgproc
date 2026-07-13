@@ -17,13 +17,13 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
 
 #include <omp.h>
+#include <unistd.h>  // gethostname
 
 #include "cuda_imgproc.hpp"
 
@@ -184,13 +184,18 @@ void bench_all() {
 
 }  // namespace
 
-int main() {
+int main() try {
     std::printf("cpu-only benchmark | OpenMP threads: %d\n\n", omp_get_max_threads());
     bench_all();
 
     std::filesystem::create_directories("results");
-    const char* host_env = std::getenv("HOSTNAME");
-    const std::string host = host_env != nullptr ? host_env : "local";
+    // gethostname, not getenv("HOSTNAME"): HOSTNAME is a shell variable most
+    // shells never export, so the env lookup almost always came up empty.
+    char hostbuf[256] = {};
+    std::string host = "local";
+    if (gethostname(hostbuf, sizeof(hostbuf) - 1) == 0 && hostbuf[0] != '\0') {
+        host = hostbuf;
+    }
     const std::string path = "results/cpu_baseline_" + host + ".csv";
     std::ofstream csv(path);
     csv << "# cpu-only run; omp_threads: " << omp_get_max_threads() << "\n";
@@ -205,4 +210,7 @@ int main() {
     csv.close();
     std::printf("\nwrote %s\n", path.c_str());
     return 0;
+} catch (const std::exception& e) {
+    std::fprintf(stderr, "bench_cpu failed: %s\n", e.what());
+    return 1;
 }

@@ -19,6 +19,19 @@ if ! nvidia-smi; then
 fi
 nvcc --version | tail -1
 
+# Build arch: honour an ARCH from the environment (`!ARCH=sm_90 bash <(...)`),
+# else read the compute capability off the device (T4 -> "7.5" -> sm_75), so
+# any GPU runtime gets native SASS. Falls back to the Makefile's default
+# fatbin if detection fails.
+if [ -z "${ARCH:-}" ]; then
+    cc="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d ' .')"
+    case "$cc" in
+        '' | *[!0-9]*) ARCH="" ;;
+        *) ARCH="sm_${cc}" ;;
+    esac
+fi
+echo "build arch: ${ARCH:-Makefile default fatbin (sm_75 + sm_86 + PTX)}"
+
 echo ""
 echo "== 2/5 clone =============================================================="
 rm -rf cuda-imgproc
@@ -28,11 +41,11 @@ cd cuda-imgproc
 echo ""
 echo "== 3/5 correctness: GPU vs CPU reference =================================="
 # Aborts this script (set -e) if any op disagrees with the CPU reference.
-make test-gpu ARCH=sm_75
+make test-gpu ${ARCH:+ARCH=$ARCH}
 
 echo ""
 echo "== 4/5 benchmark (writes results/*.csv) ==================================="
-make bench-gpu ARCH=sm_75
+make bench-gpu ${ARCH:+ARCH=$ARCH}
 
 echo ""
 echo "== 5/5 results ============================================================"
