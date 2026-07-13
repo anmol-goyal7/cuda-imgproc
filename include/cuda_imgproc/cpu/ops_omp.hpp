@@ -2,12 +2,14 @@
 // OpenMP-parallel CPU implementations.
 //
 // Same arithmetic as cpu/ops.hpp (results must be byte-identical — the test
-// suite checks), parallelized with `#pragma omp parallel for schedule(dynamic)`
+// suite checks), parallelized with `#pragma omp parallel for schedule(static)`
 // over image *rows*. Rows are a natural work unit here: each row is
-// independent, long enough to amortize scheduling overhead, and contiguous in
-// memory so each thread streams cache lines instead of fighting over them.
-// schedule(dynamic) load-balances rows across cores, which matters once the
-// OS steals time slices from some of them.
+// independent and contiguous in memory, so each thread streams cache lines
+// instead of fighting over them. schedule(static) is deliberate: the per-row
+// work is perfectly uniform, so there is nothing for a dynamic scheduler to
+// balance — dynamic's per-row shared-counter handoff only adds overhead, and
+// at small image sizes it made the OpenMP path measurably *slower* than one
+// thread. Static hands each thread one contiguous span of rows up front.
 //
 // These numbers are the honest multicore baseline for the benchmark: the GPU
 // should be compared against all the CPU parallelism you could get for free,
@@ -30,7 +32,7 @@ namespace cpu_omp {
 // ------------------------------------------------------------------ stage 1
 
 inline void rgb_to_gray(const std::uint8_t* rgb, std::uint8_t* gray, int w, int h) {
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         // Row base offsets; arithmetic per pixel matches cpu::rgb_to_gray.
         const std::size_t row = static_cast<std::size_t>(y) * w;
@@ -46,7 +48,7 @@ inline void rgb_to_gray(const std::uint8_t* rgb, std::uint8_t* gray, int w, int 
 }
 
 inline void rgb_to_hsv(const std::uint8_t* rgb, std::uint8_t* hsv, int w, int h) {
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         // Delegate one row at a time to the single-thread reference: a row of
         // an interleaved image is itself a w x 1 image.
@@ -58,7 +60,7 @@ inline void rgb_to_hsv(const std::uint8_t* rgb, std::uint8_t* hsv, int w, int h)
 // ------------------------------------------------------------------ stage 2
 
 inline void flip_horizontal(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch) {
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             const std::size_t d = (static_cast<std::size_t>(y) * w + x) * ch;
@@ -69,7 +71,7 @@ inline void flip_horizontal(const std::uint8_t* src, std::uint8_t* dst, int w, i
 }
 
 inline void flip_vertical(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch) {
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             const std::size_t d = (static_cast<std::size_t>(y) * w + x) * ch;
@@ -85,7 +87,7 @@ inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int
     const float st = std::sin(theta);
     const float cx = static_cast<float>(w - 1) * 0.5f;
     const float cy = static_cast<float>(h - 1) * 0.5f;
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             const float dx = static_cast<float>(x) - cx;
@@ -104,11 +106,11 @@ inline void resize(const std::uint8_t* src, int sw, int sh, std::uint8_t* dst, i
                    int ch) {
     const float sx = static_cast<float>(sw) / static_cast<float>(dw);
     const float sy = static_cast<float>(sh) / static_cast<float>(dh);
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < dh; ++y) {
         for (int x = 0; x < dw; ++x) {
-            const float xs = static_cast<float>(x) * sx;
-            const float ys = static_cast<float>(y) * sy;
+            const float xs = (static_cast<float>(x) + 0.5f) * sx - 0.5f;
+            const float ys = (static_cast<float>(y) + 0.5f) * sy - 0.5f;
             for (int c = 0; c < ch; ++c) {
                 dst[(static_cast<std::size_t>(y) * dw + x) * ch + c] =
                     cpu::detail::bilinear_sample(src, sw, sh, ch, c, xs, ys);
@@ -122,7 +124,7 @@ inline void resize(const std::uint8_t* src, int sw, int sh, std::uint8_t* dst, i
 inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
                        const float* wgt, int k) {
     const int r = k / 2;
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             float acc = 0.0f;
@@ -154,7 +156,7 @@ inline void equalize_hist(const std::uint8_t* src, std::uint8_t* dst, std::size_
     // gives bit-identical totals to the serial loop.
     unsigned int hist[256] = {0};
     const long long nn = static_cast<long long>(n);
-#pragma omp parallel for schedule(dynamic, 4096) reduction(+ : hist[:256])
+#pragma omp parallel for schedule(static) reduction(+ : hist[:256])
     for (long long i = 0; i < nn; ++i) ++hist[src[i]];
 
     // CDF + LUT: 256 entries, not worth parallelizing. Identical to
@@ -184,7 +186,7 @@ inline void equalize_hist(const std::uint8_t* src, std::uint8_t* dst, std::size_
         }
     }
 
-#pragma omp parallel for schedule(dynamic, 4096)
+#pragma omp parallel for schedule(static)
     for (long long i = 0; i < nn; ++i) dst[i] = lut[src[i]];
 }
 

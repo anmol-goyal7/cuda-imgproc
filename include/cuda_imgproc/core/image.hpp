@@ -43,6 +43,17 @@
 
 namespace cig {
 
+namespace detail {
+// Shared precondition check for the public API. Image ops fed the wrong shape
+// (a grayscale image into rgb_to_gray, an even filter size, ...) would corrupt
+// memory rather than fail, so the host-side entry points validate and throw.
+inline void require(bool cond, const char* msg) {
+    if (!cond) {
+        throw std::invalid_argument(msg);
+    }
+}
+}  // namespace detail
+
 struct Image {
     int width = 0;
     int height = 0;

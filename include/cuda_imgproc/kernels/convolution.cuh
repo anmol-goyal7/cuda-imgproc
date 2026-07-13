@@ -22,10 +22,13 @@
 //     tile-edge pixels);
 //   * cooperative load: 400 global reads per block, coalesced row by row;
 //   * naive version: 256 threads x 25 reads = 6400 global reads per block.
-//   400 vs 6400 -> a 16x reduction in global-memory traffic. The naive twin
-//   kernel exists so the benchmark can measure what that reduction is worth
-//   on real hardware (L1/L2 caches absorb some of the redundancy, so the
-//   measured gap is smaller than 16x — that, too, is the lesson).
+//   400 vs 6400 -> a 16x reduction in *requested* global-memory traffic. The
+//   naive twin kernel exists so the benchmark can measure what that reduction
+//   is worth on real hardware — and the answer is humbling: L1/L2 absorb most
+//   of the redundant reads, so the measured gap is far smaller than 16x, and
+//   on the T4 the naive kernel actually wins at 2048^2+ (tiling's fixed costs
+//   — halo loads, the barrier — outweigh the DRAM traffic it no longer
+//   saves). That, too, is the lesson: derive the bound, then measure.
 //
 // Why __constant__ memory for the weights? Every thread of every warp reads
 // c_filter[i*k+j] at the same (i,j) at the same time — a warp-uniform
@@ -169,10 +172,27 @@ static inline int upload_filter(Filter f) {
     return k;
 }
 
+namespace detail {
+// Shared precondition for the raw launchers. The k check is load-bearing: the
+// tiled kernel's shared array is sized for kMaxFilterSize, so a larger (or
+// even) k would read out of bounds rather than fail cleanly.
+inline void check_conv(const GpuBuffer<std::uint8_t>& d_src,
+                       const GpuBuffer<std::uint8_t>& d_dst, int w, int h, int k,
+                       const char* op) {
+    require(w > 0 && h > 0, op);
+    require(k >= 1 && k <= kMaxFilterSize && k % 2 == 1, op);
+    const std::size_t need = static_cast<std::size_t>(w) * h;
+    require(d_src.size() >= need && d_dst.size() >= need, op);
+}
+}  // namespace detail
+
 // Raw launchers: assume the filter is already resident in c_filter.
 static inline void convolve2d_tiled(const GpuBuffer<std::uint8_t>& d_src,
                                     GpuBuffer<std::uint8_t>& d_dst, int width, int height,
                                     int k, cudaStream_t stream = 0) {
+    detail::check_conv(d_src, d_dst, width, height, k,
+                       "convolve2d_tiled: bad dimensions, undersized buffer, or k not an "
+                       "odd size <= kMaxFilterSize");
     constexpr int TILE = 16;
     const dim3 block(TILE, TILE);
     const dim3 grid((static_cast<unsigned>(width) + TILE - 1) / TILE,
@@ -185,6 +205,9 @@ static inline void convolve2d_tiled(const GpuBuffer<std::uint8_t>& d_src,
 static inline void convolve2d_naive(const GpuBuffer<std::uint8_t>& d_src,
                                     GpuBuffer<std::uint8_t>& d_dst, int width, int height,
                                     int k, cudaStream_t stream = 0) {
+    detail::check_conv(d_src, d_dst, width, height, k,
+                       "convolve2d_naive: bad dimensions, undersized buffer, or k not an "
+                       "odd size <= kMaxFilterSize");
     const dim3 block(16, 16);
     const dim3 grid((static_cast<unsigned>(width) + 15u) / 16u,
                     (static_cast<unsigned>(height) + 15u) / 16u);
@@ -209,6 +232,8 @@ static inline void convolve2d(const GpuBuffer<std::uint8_t>& d_src,
 // images are split into planes on the host, convolved plane by plane, and
 // re-interleaved (matches cpu::convolve2d(Image, Filter)).
 static inline Image convolve2d(const Image& img, Filter f, bool tiled = true) {
+    detail::require(img.channels == 1 || img.channels == 3,
+                    "convolve2d: image must have 1 or 3 channels");
     const std::size_t n = img.n_pixels();
     Image out(img.width, img.height, img.channels);
     upload_filter(f);

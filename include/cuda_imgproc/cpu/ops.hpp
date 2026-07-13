@@ -15,6 +15,7 @@
 // cache tiling. This is the "one pixel after another" baseline the benchmark
 // speedups are measured against (with -O3 -march=native doing what it can).
 
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -159,16 +160,19 @@ inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int
     }
 }
 
-// Bilinear resize. Output pixel (x, y) samples source (x*sx, y*sy) with
-// sx = srcW/dstW, sy = srcH/dstH.
+// Bilinear resize with center-aligned sampling (the OpenCV/PIL/PyTorch
+// convention): output pixel (x, y) samples source ((x+0.5)*sx - 0.5,
+// (y+0.5)*sy - 0.5) with sx = srcW/dstW, sy = srcH/dstH. Aligning pixel
+// centers keeps the image centered; the naive x*sx corner alignment would
+// drag content toward the origin by up to half a source pixel per axis.
 inline void resize(const std::uint8_t* src, int sw, int sh, std::uint8_t* dst, int dw, int dh,
                    int ch) {
     const float sx = static_cast<float>(sw) / static_cast<float>(dw);
     const float sy = static_cast<float>(sh) / static_cast<float>(dh);
     for (int y = 0; y < dh; ++y) {
         for (int x = 0; x < dw; ++x) {
-            const float xs = static_cast<float>(x) * sx;
-            const float ys = static_cast<float>(y) * sy;
+            const float xs = (static_cast<float>(x) + 0.5f) * sx - 0.5f;
+            const float ys = (static_cast<float>(y) + 0.5f) * sy - 0.5f;
             for (int c = 0; c < ch; ++c) {
                 dst[(static_cast<std::size_t>(y) * dw + x) * ch + c] =
                     detail::bilinear_sample(src, sw, sh, ch, c, xs, ys);
@@ -217,6 +221,9 @@ inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
 // float, double division is unaffected by --use_fast_math, so both sides
 // round identically and the outputs match exactly.
 inline void equalize_hist(const std::uint8_t* src, std::uint8_t* dst, std::size_t n) {
+    // The histogram/CDF math below is 32-bit; beyond 2^32 - 1 pixels the
+    // counts would silently wrap. Matches the GPU wrapper's check.
+    ::cig::detail::require(n <= UINT_MAX, "equalize_hist: pixel count must fit in 32 bits");
     unsigned int hist[256] = {0};
     for (std::size_t i = 0; i < n; ++i) ++hist[src[i]];
 
@@ -255,36 +262,47 @@ inline void equalize_hist(const std::uint8_t* src, std::uint8_t* dst, std::size_
 // -------------------------------------------------- Image-level convenience
 
 inline Image rgb_to_gray(const Image& img) {
+    ::cig::detail::require(img.channels == 3, "rgb_to_gray: image must have 3 channels");
     Image out(img.width, img.height, 1);
     rgb_to_gray(img.data.data(), out.data.data(), img.width, img.height);
     return out;
 }
 
 inline Image rgb_to_hsv(const Image& img) {
+    ::cig::detail::require(img.channels == 3, "rgb_to_hsv: image must have 3 channels");
     Image out(img.width, img.height, 3);
     rgb_to_hsv(img.data.data(), out.data.data(), img.width, img.height);
     return out;
 }
 
 inline Image flip_horizontal(const Image& img) {
+    ::cig::detail::require(img.channels == 1 || img.channels == 3,
+                           "flip_horizontal: image must have 1 or 3 channels");
     Image out(img.width, img.height, img.channels);
     flip_horizontal(img.data.data(), out.data.data(), img.width, img.height, img.channels);
     return out;
 }
 
 inline Image flip_vertical(const Image& img) {
+    ::cig::detail::require(img.channels == 1 || img.channels == 3,
+                           "flip_vertical: image must have 1 or 3 channels");
     Image out(img.width, img.height, img.channels);
     flip_vertical(img.data.data(), out.data.data(), img.width, img.height, img.channels);
     return out;
 }
 
 inline Image rotate(const Image& img, float theta) {
+    ::cig::detail::require(img.channels == 1 || img.channels == 3,
+                           "rotate: image must have 1 or 3 channels");
     Image out(img.width, img.height, img.channels);
     rotate(img.data.data(), out.data.data(), img.width, img.height, img.channels, theta);
     return out;
 }
 
 inline Image resize(const Image& img, int dw, int dh) {
+    ::cig::detail::require(img.channels == 1 || img.channels == 3,
+                           "resize: image must have 1 or 3 channels");
+    ::cig::detail::require(dw > 0 && dh > 0, "resize: destination dimensions must be positive");
     Image out(dw, dh, img.channels);
     resize(img.data.data(), img.width, img.height, out.data.data(), dw, dh, img.channels);
     return out;
@@ -293,6 +311,8 @@ inline Image resize(const Image& img, int dw, int dh) {
 // Multi-channel images are convolved channel-plane by channel-plane (the
 // kernel itself is single-channel); split/merge happens here on the host.
 inline Image convolve2d(const Image& img, Filter f) {
+    ::cig::detail::require(img.channels == 1 || img.channels == 3,
+                           "convolve2d: image must have 1 or 3 channels");
     Image out(img.width, img.height, img.channels);
     if (img.channels == 1) {
         convolve2d(img.data.data(), out.data.data(), img.width, img.height, f);
@@ -308,11 +328,13 @@ inline Image convolve2d(const Image& img, Filter f) {
     return out;
 }
 
+// Single-channel only, enforced (matches the GPU wrapper): one histogram
+// over interleaved RGB would push all three channels through the same LUT
+// (shifting hues) — convert to gray, or equalize HSV's V plane, first.
 inline Image equalize_hist(const Image& img) {
-    Image out(img.width, img.height, img.channels);
-    // Defined for single-channel images (equalizing RGB channels
-    // independently shifts hues; convert to gray or HSV first).
-    equalize_hist(img.data.data(), out.data.data(), img.n_pixels() * img.channels);
+    ::cig::detail::require(img.channels == 1, "equalize_hist: image must be single-channel");
+    Image out(img.width, img.height, 1);
+    equalize_hist(img.data.data(), out.data.data(), img.n_pixels());
     return out;
 }
 

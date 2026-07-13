@@ -171,11 +171,12 @@ static void test_resize() {
     const cig::Image same = cig::cpu::resize(img, 37, 23);
     report(equal_bytes(same.data, img.data, &d), "resize identity", d);
 
-    // 2x1 -> 4x1 upscale, sx = 0.5: sample points 0, 0.5, 1.0, 1.5.
-    //   xs=0.0 -> 10;  xs=0.5 -> (10+30)/2 = 20;  xs=1.0 -> 30;
-    //   xs=1.5 -> clamped to 1.0 -> 30.
+    // 2x1 -> 4x1 upscale, sx = 0.5, center-aligned: xs = (x+0.5)*0.5 - 0.5,
+    // i.e. sample points -0.25, 0.25, 0.75, 1.25.
+    //   xs=-0.25 -> clamped to 0.0 -> 10;   xs=0.25 -> 0.75*10 + 0.25*30 = 15;
+    //   xs= 0.75 -> 0.25*10 + 0.75*30 = 25; xs=1.25 -> clamped to 1.0 -> 30.
     const std::vector<std::uint8_t> src = {10, 30};
-    const std::vector<std::uint8_t> want = {10, 20, 30, 30};
+    const std::vector<std::uint8_t> want = {10, 15, 25, 30};
     std::vector<std::uint8_t> got(4);
     cig::cpu::resize(src.data(), 2, 1, got.data(), 4, 1, 1);
     report(equal_bytes(got, want, &d), "resize 2x1 -> 4x1 fixture", d);
@@ -208,9 +209,10 @@ static void test_convolve() {
     cig::cpu::convolve2d(flat.data(), got.data(), 4, 4, cig::Filter::laplacian);
     report(equal_bytes(got, zeros, &d), "convolve2d laplacian of constant is zero", d);
 
-    // Gaussian weights sum to 1 (up to float rounding, 0.999999975); with
-    // clamp-to-edge borders a constant image must stay constant after
-    // rounding: 100 * 0.999999975 + 0.5 = 100.4999... -> 100.
+    // Gaussian weights sum to ~1 (the table is rounded to float). Running the
+    // actual fmaf accumulation over a constant-100 image gives 99.99999237...;
+    // + 0.5 truncates to 100, so with clamp-to-edge borders a constant image
+    // must come back unchanged.
     const std::vector<std::uint8_t> flat100(64, 100);
     std::vector<std::uint8_t> got100(64);
     cig::cpu::convolve2d(flat100.data(), got100.data(), 8, 8, cig::Filter::gaussian5x5);
@@ -325,7 +327,7 @@ static void test_omp_matches_single_thread() {
 // --------------------------------------------------------------- I/O
 
 static void test_png_roundtrip() {
-    const char* path = "bin/test_roundtrip.png";
+    const char* path = "test_roundtrip.png";  // CWD: works without a bin/ dir
     const cig::Image img = cig::random_image(25, 17, 3, 99);
     cig::save_png(path, img);
     const cig::Image back = cig::load_png(path);
@@ -341,15 +343,22 @@ static void test_png_roundtrip() {
 }
 
 int main() {
-    test_rgb_to_gray();
-    test_rgb_to_hsv();
-    test_flips();
-    test_rotate();
-    test_resize();
-    test_convolve();
-    test_equalize();
-    test_omp_matches_single_thread();
-    test_png_roundtrip();
+    // The library throws (bad input, failed I/O); an escaped exception should
+    // read as a failed run, not a std::terminate backtrace.
+    try {
+        test_rgb_to_gray();
+        test_rgb_to_hsv();
+        test_flips();
+        test_rotate();
+        test_resize();
+        test_convolve();
+        test_equalize();
+        test_omp_matches_single_thread();
+        test_png_roundtrip();
+    } catch (const std::exception& e) {
+        std::printf("FAIL unhandled exception: %s\n", e.what());
+        ++g_failures;
+    }
 
     if (g_failures != 0) {
         std::printf("\n%d test(s) FAILED\n", g_failures);

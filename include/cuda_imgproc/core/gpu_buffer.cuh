@@ -72,11 +72,19 @@ public:
     // Synchronous host<->device transfers over PCIe. These block until the
     // copy completes, which is exactly what the benchmarks exploit to time
     // "wall clock including transfers" separately from kernel-only time.
+    // Both bounds-check against the allocation: an oversized cudaMemcpy would
+    // silently corrupt whatever the driver placed after this buffer.
     void copy_from_host(const T* src, std::size_t n) {
+        if (n > size_) {
+            throw std::out_of_range("GpuBuffer::copy_from_host: n exceeds allocation");
+        }
         CUDA_CHECK(cudaMemcpy(ptr_, src, n * sizeof(T), cudaMemcpyHostToDevice));
     }
 
     void copy_to_host(T* dst, std::size_t n) const {
+        if (n > size_) {
+            throw std::out_of_range("GpuBuffer::copy_to_host: n exceeds allocation");
+        }
         CUDA_CHECK(cudaMemcpy(dst, ptr_, n * sizeof(T), cudaMemcpyDeviceToHost));
     }
 

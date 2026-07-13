@@ -28,6 +28,7 @@
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 
 #include "../core/cuda_check.cuh"
@@ -173,6 +174,14 @@ static __global__ void remap_kernel(const std::uint8_t* __restrict__ src,
 inline void equalize_hist(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::uint8_t>& d_dst,
                           std::size_t n_pixels, GpuBuffer<unsigned int>& d_hist,
                           GpuBuffer<std::uint8_t>& d_lut, cudaStream_t stream = 0) {
+    // The CDF/LUT math (and scan_kernel's parameter) is 32-bit; beyond
+    // 2^32 - 1 pixels the counts would silently wrap.
+    detail::require(n_pixels > 0 && n_pixels <= UINT_MAX,
+                    "equalize_hist: pixel count must fit in 32 bits");
+    detail::require(d_src.size() >= n_pixels && d_dst.size() >= n_pixels,
+                    "equalize_hist: device buffer smaller than the image");
+    detail::require(d_hist.size() >= 256 && d_lut.size() >= 256,
+                    "equalize_hist: workspace needs 256 histogram bins and 256 LUT entries");
     CUDA_CHECK(cudaMemsetAsync(d_hist.get(), 0, d_hist.bytes(), stream));
 
     const int block = 256;  // histogram_kernel/scan_kernel contract: 256 threads
@@ -203,13 +212,17 @@ inline void equalize_hist(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::u
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-// Image-level convenience (single-channel images).
+// Image-level convenience. Single-channel only, enforced: one global
+// histogram over interleaved RGB would push all three channels through the
+// same LUT (shifting hues), and equalizing channels independently is rarely
+// what anyone wants either — convert to gray, or equalize HSV's V plane.
 inline Image equalize_hist(const Image& img) {
-    const std::size_t n = img.n_pixels() * img.channels;
+    detail::require(img.channels == 1, "equalize_hist: image must be single-channel");
+    const std::size_t n = img.n_pixels();
     GpuBuffer<std::uint8_t> d_in(n), d_out(n);
     d_in.copy_from_host(img.data.data(), n);
     equalize_hist(d_in, d_out, n);
-    Image out(img.width, img.height, img.channels);
+    Image out(img.width, img.height, 1);
     d_out.copy_to_host(out.data.data(), n);
     return out;
 }

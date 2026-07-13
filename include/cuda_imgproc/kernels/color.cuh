@@ -16,6 +16,7 @@
 
 #include <cuda_runtime.h>
 
+#include <climits>
 #include <cstdint>
 
 #include "../core/cuda_check.cuh"
@@ -125,7 +126,13 @@ static __global__ void rgb_to_hsv_kernel(const std::uint8_t* __restrict__ rgb,
 
 inline void rgb_to_gray(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uint8_t>& d_gray,
                         int width, int height, cudaStream_t stream = 0) {
+    detail::require(width > 0 && height > 0 &&
+                        static_cast<long long>(width) * height <= INT_MAX,
+                    "rgb_to_gray: dimensions must be positive and w*h must fit in int");
     const int n = width * height;
+    detail::require(d_rgb.size() >= 3 * static_cast<std::size_t>(n) &&
+                        d_gray.size() >= static_cast<std::size_t>(n),
+                    "rgb_to_gray: device buffer smaller than the image");
     const int block = 256;
     const int grid = (n + block - 1) / block;  // ceil-div: cover the tail
     rgb_to_gray_kernel<<<grid, block, 0, stream>>>(d_rgb.get(), d_gray.get(), n);
@@ -134,7 +141,13 @@ inline void rgb_to_gray(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uin
 
 inline void rgb_to_hsv(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uint8_t>& d_hsv,
                        int width, int height, cudaStream_t stream = 0) {
+    detail::require(width > 0 && height > 0 &&
+                        static_cast<long long>(width) * height <= INT_MAX,
+                    "rgb_to_hsv: dimensions must be positive and w*h must fit in int");
     const int n = width * height;
+    detail::require(d_rgb.size() >= 3 * static_cast<std::size_t>(n) &&
+                        d_hsv.size() >= 3 * static_cast<std::size_t>(n),
+                    "rgb_to_hsv: device buffer smaller than the image");
     const int block = 256;
     const int grid = (n + block - 1) / block;
     rgb_to_hsv_kernel<<<grid, block, 0, stream>>>(d_rgb.get(), d_hsv.get(), n);
@@ -147,6 +160,7 @@ inline void rgb_to_hsv(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uint
 // is on the host.
 
 inline Image rgb_to_gray(const Image& img) {
+    detail::require(img.channels == 3, "rgb_to_gray: image must have 3 channels");
     GpuBuffer<std::uint8_t> d_in(img.size());
     GpuBuffer<std::uint8_t> d_out(img.n_pixels());
     d_in.copy_from_host(img.data.data(), img.size());
@@ -157,6 +171,7 @@ inline Image rgb_to_gray(const Image& img) {
 }
 
 inline Image rgb_to_hsv(const Image& img) {
+    detail::require(img.channels == 3, "rgb_to_hsv: image must have 3 channels");
     GpuBuffer<std::uint8_t> d_in(img.size());
     GpuBuffer<std::uint8_t> d_out(img.size());
     d_in.copy_from_host(img.data.data(), img.size());
