@@ -18,4 +18,5 @@
 #include "cuda_imgproc/core/gpu_buffer.cuh"
 #include "cuda_imgproc/kernels/augment.cuh"
 #include "cuda_imgproc/kernels/color.cuh"
+#include "cuda_imgproc/kernels/convolution.cuh"
 #endif
