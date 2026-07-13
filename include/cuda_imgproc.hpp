@@ -11,6 +11,7 @@
 #include "cuda_imgproc/core/filters.hpp"
 #include "cuda_imgproc/core/image.hpp"
 #include "cuda_imgproc/cpu/ops.hpp"
+#include "cuda_imgproc/cpu/ops_omp.hpp"
 
 #ifdef __CUDACC__
 #include "cuda_imgproc/core/cuda_check.cuh"

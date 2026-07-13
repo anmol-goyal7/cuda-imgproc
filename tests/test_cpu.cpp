@@ -262,6 +262,66 @@ static void test_equalize() {
            "L1(before)=" + std::to_string(before) + " L1(after)=" + std::to_string(after));
 }
 
+// --------------------------------------------------------------- OpenMP
+
+// The OpenMP variants must be byte-identical to the single-thread reference:
+// every op is either purely per-pixel (row partitioning cannot change
+// results) or, for the histogram, an order-independent integer reduction.
+static void test_omp_matches_single_thread() {
+    const int w = 129, h = 67;  // odd sizes: exercise ragged row splits
+    const cig::Image rgb = cig::random_image(w, h, 3, 13);
+    const cig::Image gray1 = cig::cpu::rgb_to_gray(rgb);
+    std::string d;
+
+    {
+        cig::Image got(w, h, 1);
+        cig::cpu_omp::rgb_to_gray(rgb.data.data(), got.data.data(), w, h);
+        report(equal_bytes(got.data, gray1.data, &d), "omp rgb_to_gray matches", d);
+    }
+    {
+        cig::Image want(w, h, 3), got(w, h, 3);
+        cig::cpu::rgb_to_hsv(rgb.data.data(), want.data.data(), w, h);
+        cig::cpu_omp::rgb_to_hsv(rgb.data.data(), got.data.data(), w, h);
+        report(equal_bytes(got.data, want.data, &d), "omp rgb_to_hsv matches", d);
+    }
+    {
+        cig::Image want(w, h, 3), got(w, h, 3);
+        cig::cpu::flip_horizontal(rgb.data.data(), want.data.data(), w, h, 3);
+        cig::cpu_omp::flip_horizontal(rgb.data.data(), got.data.data(), w, h, 3);
+        report(equal_bytes(got.data, want.data, &d), "omp flip_horizontal matches", d);
+        cig::cpu::flip_vertical(rgb.data.data(), want.data.data(), w, h, 3);
+        cig::cpu_omp::flip_vertical(rgb.data.data(), got.data.data(), w, h, 3);
+        report(equal_bytes(got.data, want.data, &d), "omp flip_vertical matches", d);
+    }
+    {
+        const float theta = 0.6f;
+        cig::Image want(w, h, 3), got(w, h, 3);
+        cig::cpu::rotate(rgb.data.data(), want.data.data(), w, h, 3, theta);
+        cig::cpu_omp::rotate(rgb.data.data(), got.data.data(), w, h, 3, theta);
+        report(equal_bytes(got.data, want.data, &d), "omp rotate matches", d);
+    }
+    {
+        cig::Image want(50, 90, 3), got(50, 90, 3);
+        cig::cpu::resize(rgb.data.data(), w, h, want.data.data(), 50, 90, 3);
+        cig::cpu_omp::resize(rgb.data.data(), w, h, got.data.data(), 50, 90, 3);
+        report(equal_bytes(got.data, want.data, &d), "omp resize matches", d);
+    }
+    {
+        cig::Image want(w, h, 1), got(w, h, 1);
+        cig::cpu::convolve2d(gray1.data.data(), want.data.data(), w, h,
+                             cig::Filter::gaussian5x5);
+        cig::cpu_omp::convolve2d(gray1.data.data(), got.data.data(), w, h,
+                                 cig::Filter::gaussian5x5);
+        report(equal_bytes(got.data, want.data, &d), "omp convolve2d matches", d);
+    }
+    {
+        cig::Image want(w, h, 1), got(w, h, 1);
+        cig::cpu::equalize_hist(gray1.data.data(), want.data.data(), gray1.n_pixels());
+        cig::cpu_omp::equalize_hist(gray1.data.data(), got.data.data(), gray1.n_pixels());
+        report(equal_bytes(got.data, want.data, &d), "omp equalize_hist matches", d);
+    }
+}
+
 // --------------------------------------------------------------- I/O
 
 static void test_png_roundtrip() {
@@ -288,6 +348,7 @@ int main() {
     test_resize();
     test_convolve();
     test_equalize();
+    test_omp_matches_single_thread();
     test_png_roundtrip();
 
     if (g_failures != 0) {
