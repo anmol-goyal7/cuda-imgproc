@@ -3,9 +3,10 @@ bin/
 build/
 *.o
 
-# images produced by tools/examples (regenerable, never sources)
+# images produced by tools/examples/tests (regenerable, never sources)
 out_*.png
 test_image.png
+test_roundtrip.png
 
 # editor / local tooling
 .claude/

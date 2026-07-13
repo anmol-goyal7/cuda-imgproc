@@ -1,0 +1,7 @@
+# House style: Google base, 4-space indent, 100-column limit.
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+DerivePointerAlignment: false
+PointerAlignment: Left

@@ -143,4 +143,4 @@ bin:
 	@mkdir -p bin
 
 clean:
-	rm -rf bin out_*.png test_image.png
+	rm -rf bin out_*.png test_image.png test_roundtrip.png

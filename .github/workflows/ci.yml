@@ -1,0 +1,22 @@
+name: ci
+
+# GPU-less CI: builds and runs everything that doesn't need a CUDA device
+# (the GPU suite runs on Colab — see colab/README.md). Also checks that the
+# committed README/results tables match what render_results.py generates.
+on:
+  push:
+  pull_request:
+
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build + run CPU test suite
+        run: make test-cpu
+
+      - name: render results tables (idempotency check)
+        run: |
+          python3 scripts/render_results.py
+          git diff --exit-code
