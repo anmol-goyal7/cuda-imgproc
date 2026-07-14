@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -334,6 +335,53 @@ static void test_omp_matches_single_thread() {
     }
 }
 
+// --------------------------------------------------------------- validation
+
+// Runs fn and passes only if it throws std::invalid_argument — the exception
+// every cig::detail::require guard raises. Any other exception (or none) is a
+// failure: the guards exist so bad shapes fail loudly *before* any buffer is
+// touched, and this is the test that keeps them honest.
+template <typename Fn>
+static void expect_invalid_argument(const char* name, Fn&& fn) {
+    try {
+        fn();
+        report(false, name, "no exception thrown");
+    } catch (const std::invalid_argument&) {
+        report(true, name);
+    } catch (const std::exception& e) {
+        report(false, name, std::string("wrong exception type: ") + e.what());
+    }
+}
+
+// The Image-level API validates channel counts and dimensions via
+// cig::detail::require rather than reading out of bounds. (The GPU wrappers
+// share the same guard helper; their checks run under test_gpu on a CUDA
+// machine.)
+static void test_validation_throws() {
+    const cig::Image gray = cig::random_image(8, 8, 1, 1);
+    const cig::Image rgb = cig::random_image(8, 8, 3, 1);
+    const cig::Image two_ch(8, 8, 2);  // legal container, invalid op input
+
+    expect_invalid_argument("rgb_to_gray rejects 1-channel input",
+                            [&] { cig::cpu::rgb_to_gray(gray); });
+    expect_invalid_argument("rgb_to_hsv rejects 1-channel input",
+                            [&] { cig::cpu::rgb_to_hsv(gray); });
+    expect_invalid_argument("flip_horizontal rejects 2-channel input",
+                            [&] { cig::cpu::flip_horizontal(two_ch); });
+    expect_invalid_argument("flip_vertical rejects 2-channel input",
+                            [&] { cig::cpu::flip_vertical(two_ch); });
+    expect_invalid_argument("rotate rejects 2-channel input",
+                            [&] { cig::cpu::rotate(two_ch, 0.5f); });
+    expect_invalid_argument("resize rejects 2-channel input",
+                            [&] { cig::cpu::resize(two_ch, 4, 4); });
+    expect_invalid_argument("resize rejects non-positive destination",
+                            [&] { cig::cpu::resize(rgb, 0, 4); });
+    expect_invalid_argument("convolve2d rejects 2-channel input",
+                            [&] { cig::cpu::convolve2d(two_ch, cig::Filter::gaussian5x5); });
+    expect_invalid_argument("equalize_hist rejects 3-channel input",
+                            [&] { cig::cpu::equalize_hist(rgb); });
+}
+
 // --------------------------------------------------------------- I/O
 
 static void test_png_roundtrip() {
@@ -364,6 +412,7 @@ int main() {
         test_convolve();
         test_equalize();
         test_omp_matches_single_thread();
+        test_validation_throws();
         test_png_roundtrip();
     } catch (const std::exception& e) {
         std::printf("FAIL unhandled exception: %s\n", e.what());
