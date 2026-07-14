@@ -3,6 +3,10 @@ bin/
 build/
 *.o
 
+# local CPU-only baseline runs (bench_cpu output; the README renderer ignores
+# these by design — only the canonical results_*.csv files are committed)
+results/cpu_baseline_*.csv
+
 # images produced by tools/examples/tests (regenerable, never sources)
 out_*.png
 test_image.png
