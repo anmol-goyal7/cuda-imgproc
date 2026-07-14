@@ -120,6 +120,12 @@ Reproduce: `colab/README.md` (one pasted cell on a free Colab T4), then `make re
 *`_batch100` rows are per-image figures over a pipelined 100-image batch (throughput in parentheses); their CPU columns use 5 timed batch runs.*
 <!-- BENCH:END -->
 
+A caveat on the `openmp` column: Colab pairs the T4 with only **2 vCPUs** (stamped as
+`omp_threads: 2` in the CSV header) on a shared, noisy VM, so a few OpenMP cells land *slower*
+than single-thread (e.g. `gaussian5x5` at 512²). That is oversubscription noise on a 2-thread
+host, not a property of the code path — the single-thread and GPU columns are the stable
+comparison. To see the OpenMP scaling on a real multicore machine, run `make bench-cpu` locally.
+
 ## Tiled vs naive convolution, by the numbers
 
 For a 5×5 kernel (radius r=2) with 16×16 tiles, per block:
