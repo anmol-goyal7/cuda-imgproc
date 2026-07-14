@@ -28,16 +28,16 @@ static void report(bool ok, const char* name, const std::string& detail = "") {
 }
 
 // Compares two byte buffers; on mismatch, describes the first differing index.
-static bool equal_bytes(const std::vector<std::uint8_t>& got,
-                        const std::vector<std::uint8_t>& want, std::string* detail) {
+static bool equal_bytes(const std::vector<std::uint8_t>& got, const std::vector<std::uint8_t>& want,
+                        std::string* detail) {
     if (got.size() != want.size()) {
         *detail = "size " + std::to_string(got.size()) + " != " + std::to_string(want.size());
         return false;
     }
     for (std::size_t i = 0; i < got.size(); ++i) {
         if (got[i] != want[i]) {
-            *detail = "index " + std::to_string(i) + ": got " + std::to_string(got[i]) +
-                      ", want " + std::to_string(want[i]);
+            *detail = "index " + std::to_string(i) + ": got " + std::to_string(got[i]) + ", want " +
+                      std::to_string(want[i]);
             return false;
         }
     }
@@ -51,6 +51,8 @@ static void test_rgb_to_gray() {
     // y = 0.299 R + 0.587 G + 0.114 B, rounded via (uint8)(y + 0.5).
     // All chosen values sit far from rounding boundaries, so hand decimal
     // arithmetic and float arithmetic agree.
+    // Formatter guard: fixture tables are hand-aligned.
+    // clang-format off
     const std::vector<std::uint8_t> rgb = {
         255, 0,   0,   0,   255, 0,   0,   0,   255, 255, 255, 255,  // row 0
         0,   0,   0,   128, 128, 128, 100, 100, 100, 50,  100, 150,  // row 1
@@ -75,6 +77,7 @@ static void test_rgb_to_gray() {
         116, // (60,120,240): 17.94+70.44+27.36 = 115.74 -> 116
         74,  // (90,45,180):  26.91+26.415+20.52 = 73.845 -> 74
     };
+    // clang-format on
     std::vector<std::uint8_t> got(16);
     cig::cpu::rgb_to_gray(rgb.data(), got.data(), 4, 4);
     std::string d;
@@ -90,8 +93,10 @@ static void test_rgb_to_hsv() {
     //   (0,0,0):      degenerate: H 0, S 0, V 0
     //   (255,255,255): diff 0:  H 0; S 0; V 255
     //   (255,128,0):  hue 60*128/255 = 30.118 -> H round(15.059+0.44...) = 15; S 255; V 255
-    //   (100,150,200): max B: hue 240+60*(100-150)/100 = 210 -> H 105; S round(255*100/200)=128; V 200
+    //   (100,150,200): max B: hue 240+60*(100-150)/100 = 210 -> H 105;
+    //                  S round(255*100/200) = 128; V 200
     //   (200,100,150): max R: hue 60*(100-150)/100 = -30 -> +360 = 330 -> H 165; S 128; V 200
+    // clang-format off
     const std::vector<std::uint8_t> rgb = {
         255, 0,   0,   0,   255, 0,   0,   0,   255, 0,   0,   0,
         255, 255, 255, 255, 128, 0,   100, 150, 200, 200, 100, 150,
@@ -100,6 +105,7 @@ static void test_rgb_to_hsv() {
         0,   255, 255, 60,  255, 255, 120, 255, 255, 0,   0,   0,
         0,   0,   255, 15,  255, 255, 105, 128, 200, 165, 128, 200,
     };
+    // clang-format on
     std::vector<std::uint8_t> got(24);
     cig::cpu::rgb_to_hsv(rgb.data(), got.data(), 4, 2);
     std::string d;
@@ -116,10 +122,12 @@ static void test_flips() {
     //   12 13 14 15       15 14 13 12         0  1  2  3
     std::vector<std::uint8_t> src(16);
     for (int i = 0; i < 16; ++i) src[i] = static_cast<std::uint8_t>(i);
-    const std::vector<std::uint8_t> want_h = {3, 2,  1,  0,  7,  6,  5,  4,
-                                              11, 10, 9,  8,  15, 14, 13, 12};
-    const std::vector<std::uint8_t> want_v = {12, 13, 14, 15, 8, 9, 10, 11,
-                                              4,  5,  6,  7,  0, 1, 2,  3};
+    // clang-format off
+    const std::vector<std::uint8_t> want_h = { 3,  2,  1,  0,   7,  6,  5,  4,
+                                              11, 10,  9,  8,  15, 14, 13, 12};
+    const std::vector<std::uint8_t> want_v = {12, 13, 14, 15,   8,  9, 10, 11,
+                                               4,  5,  6,  7,   0,  1,  2,  3};
+    // clang-format on
 
     std::vector<std::uint8_t> got(16);
     std::string d;
@@ -131,9 +139,12 @@ static void test_flips() {
     // 2x2 RGB: horizontal flip must move whole pixels, not scramble channels.
     //   (10,11,12)(20,21,22)      (20,21,22)(10,11,12)
     //   (30,31,32)(40,41,42)  ->  (40,41,42)(30,31,32)
-    const std::vector<std::uint8_t> rgb = {10, 11, 12, 20, 21, 22, 30, 31, 32, 40, 41, 42};
+    // clang-format off
+    const std::vector<std::uint8_t> rgb      = {10, 11, 12, 20, 21, 22,
+                                                30, 31, 32, 40, 41, 42};
     const std::vector<std::uint8_t> want_rgb = {20, 21, 22, 10, 11, 12,
                                                 40, 41, 42, 30, 31, 32};
+    // clang-format on
     std::vector<std::uint8_t> got_rgb(12);
     cig::cpu::flip_horizontal(rgb.data(), got_rgb.data(), 2, 2, 3);
     report(equal_bytes(got_rgb, want_rgb, &d), "flip_horizontal 3-channel fixture", d);
@@ -310,8 +321,7 @@ static void test_omp_matches_single_thread() {
     }
     {
         cig::Image want(w, h, 1), got(w, h, 1);
-        cig::cpu::convolve2d(gray1.data.data(), want.data.data(), w, h,
-                             cig::Filter::gaussian5x5);
+        cig::cpu::convolve2d(gray1.data.data(), want.data.data(), w, h, cig::Filter::gaussian5x5);
         cig::cpu_omp::convolve2d(gray1.data.data(), got.data.data(), w, h,
                                  cig::Filter::gaussian5x5);
         report(equal_bytes(got.data, want.data, &d), "omp convolve2d matches", d);

@@ -13,6 +13,9 @@
 // CSV with the GPU and speedup columns left empty. The README renderer
 // ignores these files by design (it globs results/results_*.csv).
 
+#include <omp.h>
+#include <unistd.h>  // gethostname
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -21,9 +24,6 @@
 #include <fstream>
 #include <string>
 #include <vector>
-
-#include <omp.h>
-#include <unistd.h>  // gethostname
 
 #include "cuda_imgproc.hpp"
 
@@ -91,10 +91,8 @@ void bench_all() {
         const cig::Image img = cig::random_image(s, s, 3, 42);
         std::vector<std::uint8_t> out(img.n_pixels());
         Row r{"rgb_to_gray", res(s, s), {}, {}};
-        r.cpu_1t =
-            time_host_ms([&] { cig::cpu::rgb_to_gray(img.data.data(), out.data(), s, s); });
-        r.omp =
-            time_host_ms([&] { cig::cpu_omp::rgb_to_gray(img.data.data(), out.data(), s, s); });
+        r.cpu_1t = time_host_ms([&] { cig::cpu::rgb_to_gray(img.data.data(), out.data(), s, s); });
+        r.omp = time_host_ms([&] { cig::cpu_omp::rgb_to_gray(img.data.data(), out.data(), s, s); });
         add_row(std::move(r));
     }
 
@@ -106,8 +104,7 @@ void bench_all() {
             cig::cpu::convolve2d(img.data.data(), out.data(), s, s, cig::Filter::gaussian5x5);
         });
         r.omp = time_host_ms([&] {
-            cig::cpu_omp::convolve2d(img.data.data(), out.data(), s, s,
-                                     cig::Filter::gaussian5x5);
+            cig::cpu_omp::convolve2d(img.data.data(), out.data(), s, s, cig::Filter::gaussian5x5);
         });
         add_row(std::move(r));
     }
@@ -203,8 +200,8 @@ int main() try {
            "speedup_vs_omp\n";
     char buf[256];
     for (const Row& r : g_rows) {
-        std::snprintf(buf, sizeof(buf), "%s,%s,%.6f,%.6f,,,,\n", r.op.c_str(),
-                      r.resolution.c_str(), r.cpu_1t.median_ms, r.omp.median_ms);
+        std::snprintf(buf, sizeof(buf), "%s,%s,%.6f,%.6f,,,,\n", r.op.c_str(), r.resolution.c_str(),
+                      r.cpu_1t.median_ms, r.omp.median_ms);
         csv << buf;
     }
     csv.close();

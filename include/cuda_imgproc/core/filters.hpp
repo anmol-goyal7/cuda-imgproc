@@ -26,11 +26,14 @@ enum class Filter {
     sharpen,
 };
 
-inline int filter_size(Filter f) {
-    return f == Filter::gaussian5x5 ? 5 : 3;
-}
+inline int filter_size(Filter f) { return f == Filter::gaussian5x5 ? 5 : 3; }
 
 // Row-major k*k weight table for each filter.
+//
+// Formatter guard: the tables below are laid out as the 2D matrices they
+// are — one line per kernel row, columns aligned — which clang-format would
+// repack into meaningless flat lines.
+// clang-format off
 inline const float* filter_weights(Filter f) {
     // Gaussian blur, sigma = 1.0. Weights are G(x,y) = exp(-(x^2+y^2)/(2*sigma^2))
     // evaluated at integer offsets x,y in [-2,2], then normalized to sum 1
@@ -78,14 +81,20 @@ inline const float* filter_weights(Filter f) {
     }
     throw std::invalid_argument("filter_weights: unknown filter");
 }
+// clang-format on
 
 inline const char* filter_name(Filter f) {
     switch (f) {
-        case Filter::gaussian5x5: return "gaussian5x5";
-        case Filter::sobel_x:     return "sobel_x";
-        case Filter::sobel_y:     return "sobel_y";
-        case Filter::laplacian:   return "laplacian";
-        case Filter::sharpen:     return "sharpen";
+        case Filter::gaussian5x5:
+            return "gaussian5x5";
+        case Filter::sobel_x:
+            return "sobel_x";
+        case Filter::sobel_y:
+            return "sobel_y";
+        case Filter::laplacian:
+            return "laplacian";
+        case Filter::sharpen:
+            return "sharpen";
     }
     return "unknown";
 }

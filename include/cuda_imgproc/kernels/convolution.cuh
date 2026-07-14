@@ -122,9 +122,8 @@ __global__ void convolve2d_tiled_kernel(const std::uint8_t* __restrict__ src,
     for (int i = 0; i < k; ++i) {
         for (int j = 0; j < k; ++j) {
             acc = fmaf(c_filter[i * k + j],
-                       static_cast<float>(
-                           tile[(static_cast<int>(threadIdx.y) + i) * tile_w +
-                                (static_cast<int>(threadIdx.x) + j)]),
+                       static_cast<float>(tile[(static_cast<int>(threadIdx.y) + i) * tile_w +
+                                               (static_cast<int>(threadIdx.x) + j)]),
                        acc);
         }
     }
@@ -176,9 +175,8 @@ namespace detail {
 // Shared precondition for the raw launchers. The k check is load-bearing: the
 // tiled kernel's shared array is sized for kMaxFilterSize, so a larger (or
 // even) k would read out of bounds rather than fail cleanly.
-inline void check_conv(const GpuBuffer<std::uint8_t>& d_src,
-                       const GpuBuffer<std::uint8_t>& d_dst, int w, int h, int k,
-                       const char* op) {
+inline void check_conv(const GpuBuffer<std::uint8_t>& d_src, const GpuBuffer<std::uint8_t>& d_dst,
+                       int w, int h, int k, const char* op) {
     require(w > 0 && h > 0, op);
     require(k >= 1 && k <= kMaxFilterSize && k % 2 == 1, op);
     const std::size_t need = static_cast<std::size_t>(w) * h;
@@ -188,8 +186,8 @@ inline void check_conv(const GpuBuffer<std::uint8_t>& d_src,
 
 // Raw launchers: assume the filter is already resident in c_filter.
 static inline void convolve2d_tiled(const GpuBuffer<std::uint8_t>& d_src,
-                                    GpuBuffer<std::uint8_t>& d_dst, int width, int height,
-                                    int k, cudaStream_t stream = 0) {
+                                    GpuBuffer<std::uint8_t>& d_dst, int width, int height, int k,
+                                    cudaStream_t stream = 0) {
     detail::check_conv(d_src, d_dst, width, height, k,
                        "convolve2d_tiled: bad dimensions, undersized buffer, or k not an "
                        "odd size <= kMaxFilterSize");
@@ -197,29 +195,28 @@ static inline void convolve2d_tiled(const GpuBuffer<std::uint8_t>& d_src,
     const dim3 block(TILE, TILE);
     const dim3 grid((static_cast<unsigned>(width) + TILE - 1) / TILE,
                     (static_cast<unsigned>(height) + TILE - 1) / TILE);
-    convolve2d_tiled_kernel<TILE><<<grid, block, 0, stream>>>(d_src.get(), d_dst.get(), width,
-                                                              height, k);
+    convolve2d_tiled_kernel<TILE>
+        <<<grid, block, 0, stream>>>(d_src.get(), d_dst.get(), width, height, k);
     CUDA_CHECK(cudaGetLastError());
 }
 
 static inline void convolve2d_naive(const GpuBuffer<std::uint8_t>& d_src,
-                                    GpuBuffer<std::uint8_t>& d_dst, int width, int height,
-                                    int k, cudaStream_t stream = 0) {
+                                    GpuBuffer<std::uint8_t>& d_dst, int width, int height, int k,
+                                    cudaStream_t stream = 0) {
     detail::check_conv(d_src, d_dst, width, height, k,
                        "convolve2d_naive: bad dimensions, undersized buffer, or k not an "
                        "odd size <= kMaxFilterSize");
     const dim3 block(16, 16);
     const dim3 grid((static_cast<unsigned>(width) + 15u) / 16u,
                     (static_cast<unsigned>(height) + 15u) / 16u);
-    convolve2d_naive_kernel<<<grid, block, 0, stream>>>(d_src.get(), d_dst.get(), width,
-                                                        height, k);
+    convolve2d_naive_kernel<<<grid, block, 0, stream>>>(d_src.get(), d_dst.get(), width, height, k);
     CUDA_CHECK(cudaGetLastError());
 }
 
 // upload + launch in one call; single-channel buffers.
-static inline void convolve2d(const GpuBuffer<std::uint8_t>& d_src,
-                              GpuBuffer<std::uint8_t>& d_dst, int width, int height, Filter f,
-                              bool tiled = true, cudaStream_t stream = 0) {
+static inline void convolve2d(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::uint8_t>& d_dst,
+                              int width, int height, Filter f, bool tiled = true,
+                              cudaStream_t stream = 0) {
     const int k = upload_filter(f);
     if (tiled) {
         convolve2d_tiled(d_src, d_dst, width, height, k, stream);

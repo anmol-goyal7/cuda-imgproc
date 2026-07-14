@@ -25,9 +25,8 @@ namespace detail {
 // Out-of-line so the macro below stays a single expression statement.
 inline void cuda_check_impl(cudaError_t err, const char* expr, const char* file, int line) {
     if (err != cudaSuccess) {
-        throw std::runtime_error(std::string("CUDA error at ") + file + ":" +
-                                 std::to_string(line) + " — " + expr + " failed: " +
-                                 cudaGetErrorString(err));
+        throw std::runtime_error(std::string("CUDA error at ") + file + ":" + std::to_string(line) +
+                                 " — " + expr + " failed: " + cudaGetErrorString(err));
     }
 }
 

@@ -123,9 +123,9 @@ inline Image make_synthetic(int w, int h, int channels = 3, std::uint32_t seed =
         for (int x = 0; x < w; ++x) {
             // Base gradients, per channel.
             int base[3];
-            base[0] = (w > 1) ? x * 255 / (w - 1) : 0;              // R: left->right ramp
-            base[1] = (h > 1) ? y * 255 / (h - 1) : 0;              // G: top->bottom ramp
-            base[2] = (base[0] + base[1]) / 2;                      // B: diagonal ramp
+            base[0] = (w > 1) ? x * 255 / (w - 1) : 0;  // R: left->right ramp
+            base[1] = (h > 1) ? y * 255 / (h - 1) : 0;  // G: top->bottom ramp
+            base[2] = (base[0] + base[1]) / 2;          // B: diagonal ramp
 
             // Two disks: one bright, one dark, offset from center.
             const long long dx1 = x - (cx - w / 5), dy1 = y - (cy - h / 5);

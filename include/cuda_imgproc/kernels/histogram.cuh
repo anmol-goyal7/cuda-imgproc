@@ -185,8 +185,8 @@ inline void equalize_hist(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::u
     CUDA_CHECK(cudaMemsetAsync(d_hist.get(), 0, d_hist.bytes(), stream));
 
     const int block = 256;  // histogram_kernel/scan_kernel contract: 256 threads
-    const unsigned int grid_hist = static_cast<unsigned int>(
-        std::min<std::size_t>((n_pixels + block - 1) / block, 4096));
+    const unsigned int grid_hist =
+        static_cast<unsigned int>(std::min<std::size_t>((n_pixels + block - 1) / block, 4096));
     histogram_kernel<<<grid_hist, block, 0, stream>>>(d_src.get(), n_pixels, d_hist.get());
     CUDA_CHECK(cudaGetLastError());
 
@@ -194,10 +194,8 @@ inline void equalize_hist(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::u
                                          static_cast<unsigned int>(n_pixels));
     CUDA_CHECK(cudaGetLastError());
 
-    const unsigned int grid_remap =
-        static_cast<unsigned int>((n_pixels + block - 1) / block);
-    remap_kernel<<<grid_remap, block, 0, stream>>>(d_src.get(), d_dst.get(), d_lut.get(),
-                                                   n_pixels);
+    const unsigned int grid_remap = static_cast<unsigned int>((n_pixels + block - 1) / block);
+    remap_kernel<<<grid_remap, block, 0, stream>>>(d_src.get(), d_dst.get(), d_lut.get(), n_pixels);
     CUDA_CHECK(cudaGetLastError());
 }
 

@@ -81,8 +81,7 @@ inline void flip_vertical(const std::uint8_t* src, std::uint8_t* dst, int w, int
     }
 }
 
-inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch,
-                   float theta) {
+inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch, float theta) {
     const float ct = std::cos(theta);
     const float st = std::sin(theta);
     const float cx = static_cast<float>(w - 1) * 0.5f;
@@ -121,8 +120,8 @@ inline void resize(const std::uint8_t* src, int sw, int sh, std::uint8_t* dst, i
 
 // ------------------------------------------------------------------ stage 3
 
-inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
-                       const float* wgt, int k) {
+inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h, const float* wgt,
+                       int k) {
     const int r = k / 2;
 #pragma omp parallel for schedule(static)
     for (int y = 0; y < h; ++y) {
@@ -132,9 +131,9 @@ inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
                 const int sy = cpu::detail::clampi(y + i - r, 0, h - 1);
                 for (int j = 0; j < k; ++j) {
                     const int sx = cpu::detail::clampi(x + j - r, 0, w - 1);
-                    acc = std::fmaf(
-                        wgt[i * k + j],
-                        static_cast<float>(src[static_cast<std::size_t>(sy) * w + sx]), acc);
+                    acc = std::fmaf(wgt[i * k + j],
+                                    static_cast<float>(src[static_cast<std::size_t>(sy) * w + sx]),
+                                    acc);
                 }
             }
             acc = cpu::detail::clampf(acc, 0.0f, 255.0f);
@@ -156,7 +155,7 @@ inline void equalize_hist(const std::uint8_t* src, std::uint8_t* dst, std::size_
     // gives bit-identical totals to the serial loop.
     unsigned int hist[256] = {0};
     const long long nn = static_cast<long long>(n);
-#pragma omp parallel for schedule(static) reduction(+ : hist[:256])
+#pragma omp parallel for schedule(static) reduction(+ : hist[ : 256])
     for (long long i = 0; i < nn; ++i) ++hist[src[i]];
 
     // CDF + LUT: 256 entries, not worth parallelizing. Identical to

@@ -34,8 +34,8 @@ inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi 
 // Bilinear interpolation over the 4 integer pixels around (xs, ys), channel c
 // of an interleaved image. Coordinates outside the image are clamped to the
 // edge. Mirrors bilinear_sample() in kernels/augment.cuh term for term.
-inline std::uint8_t bilinear_sample(const std::uint8_t* src, int w, int h, int ch, int c,
-                                    float xs, float ys) {
+inline std::uint8_t bilinear_sample(const std::uint8_t* src, int w, int h, int ch, int c, float xs,
+                                    float ys) {
     xs = clampf(xs, 0.0f, static_cast<float>(w - 1));
     ys = clampf(ys, 0.0f, static_cast<float>(h - 1));
     const int x0 = static_cast<int>(xs);  // truncation == floor: xs >= 0 after clamp
@@ -87,9 +87,8 @@ inline void rgb_to_hsv(const std::uint8_t* rgb, std::uint8_t* hsv, int w, int h)
 
         std::uint8_t s8 = 0;
         if (v != 0) {
-            s8 = static_cast<std::uint8_t>(255.0f * static_cast<float>(diff) /
-                                               static_cast<float>(v) +
-                                           0.5f);
+            s8 = static_cast<std::uint8_t>(
+                255.0f * static_cast<float>(diff) / static_cast<float>(v) + 0.5f);
         }
 
         std::uint8_t h8 = 0;
@@ -140,8 +139,7 @@ inline void flip_vertical(const std::uint8_t* src, std::uint8_t* dst, int w, int
 // ((W-1)/2, (H-1)/2), via inverse mapping: for each *output* pixel, rotate
 // its coordinates backwards to find where it came from in the source, then
 // interpolate. Out-of-range sources clamp to the edge.
-inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch,
-                   float theta) {
+inline void rotate(const std::uint8_t* src, std::uint8_t* dst, int w, int h, int ch, float theta) {
     const float ct = std::cos(theta);
     const float st = std::sin(theta);
     const float cx = static_cast<float>(w - 1) * 0.5f;
@@ -187,8 +185,8 @@ inline void resize(const std::uint8_t* src, int sw, int sh, std::uint8_t* dst, i
 // borders. Accumulates in float via explicit fma, innermost loop over kernel
 // columns — the GPU kernels use the exact same order, which is what makes
 // exact output comparison meaningful.
-inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
-                       const float* wgt, int k) {
+inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h, const float* wgt,
+                       int k) {
     const int r = k / 2;
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
@@ -197,9 +195,9 @@ inline void convolve2d(const std::uint8_t* src, std::uint8_t* dst, int w, int h,
                 const int sy = detail::clampi(y + i - r, 0, h - 1);
                 for (int j = 0; j < k; ++j) {
                     const int sx = detail::clampi(x + j - r, 0, w - 1);
-                    acc = std::fmaf(
-                        wgt[i * k + j],
-                        static_cast<float>(src[static_cast<std::size_t>(sy) * w + sx]), acc);
+                    acc = std::fmaf(wgt[i * k + j],
+                                    static_cast<float>(src[static_cast<std::size_t>(sy) * w + sx]),
+                                    acc);
                 }
             }
             acc = detail::clampf(acc, 0.0f, 255.0f);

@@ -91,8 +91,7 @@ static __global__ void rgb_to_hsv_kernel(const std::uint8_t* __restrict__ rgb,
 
     std::uint8_t s8 = 0;
     if (v != 0) {
-        s8 = static_cast<std::uint8_t>(255.0f * static_cast<float>(diff) /
-                                           static_cast<float>(v) +
+        s8 = static_cast<std::uint8_t>(255.0f * static_cast<float>(diff) / static_cast<float>(v) +
                                        0.5f);
     }
 
@@ -126,8 +125,7 @@ static __global__ void rgb_to_hsv_kernel(const std::uint8_t* __restrict__ rgb,
 
 inline void rgb_to_gray(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uint8_t>& d_gray,
                         int width, int height, cudaStream_t stream = 0) {
-    detail::require(width > 0 && height > 0 &&
-                        static_cast<long long>(width) * height <= INT_MAX,
+    detail::require(width > 0 && height > 0 && static_cast<long long>(width) * height <= INT_MAX,
                     "rgb_to_gray: dimensions must be positive and w*h must fit in int");
     const int n = width * height;
     detail::require(d_rgb.size() >= 3 * static_cast<std::size_t>(n) &&
@@ -141,8 +139,7 @@ inline void rgb_to_gray(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uin
 
 inline void rgb_to_hsv(const GpuBuffer<std::uint8_t>& d_rgb, GpuBuffer<std::uint8_t>& d_hsv,
                        int width, int height, cudaStream_t stream = 0) {
-    detail::require(width > 0 && height > 0 &&
-                        static_cast<long long>(width) * height <= INT_MAX,
+    detail::require(width > 0 && height > 0 && static_cast<long long>(width) * height <= INT_MAX,
                     "rgb_to_hsv: dimensions must be positive and w*h must fit in int");
     const int n = width * height;
     detail::require(d_rgb.size() >= 3 * static_cast<std::size_t>(n) &&

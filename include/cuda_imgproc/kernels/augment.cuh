@@ -44,9 +44,8 @@ __device__ __forceinline__ float clampf(float v, float lo, float hi) {
 // by both rotate and resize. Mirrors cpu::detail::bilinear_sample term for
 // term (the CPU reference must interpolate identically for the ±1 tolerance
 // in the tests to be meaningful).
-__device__ __forceinline__ std::uint8_t bilinear_sample(const std::uint8_t* __restrict__ src,
-                                                        int w, int h, int ch, int c, float xs,
-                                                        float ys) {
+__device__ __forceinline__ std::uint8_t bilinear_sample(const std::uint8_t* __restrict__ src, int w,
+                                                        int h, int ch, int c, float xs, float ys) {
     xs = clampf(xs, 0.0f, static_cast<float>(w - 1));
     ys = clampf(ys, 0.0f, static_cast<float>(h - 1));
     const int x0 = static_cast<int>(xs);  // truncation == floor: xs >= 0 after clamp
@@ -91,8 +90,7 @@ static __global__ void flip_horizontal_kernel(const std::uint8_t* __restrict__ s
 // flip_vertical_kernel — output (x,y) gathers source (x, H-1-y). Rows move
 // wholesale, so reads and writes are both perfectly coalesced.
 static __global__ void flip_vertical_kernel(const std::uint8_t* __restrict__ src,
-                                            std::uint8_t* __restrict__ dst, int w, int h,
-                                            int ch) {
+                                            std::uint8_t* __restrict__ dst, int w, int h, int ch) {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= w || y >= h) return;
@@ -176,9 +174,8 @@ inline dim3 grid2d(int w, int h) {
 }
 
 // Common precondition for the same-size ops below.
-inline void check_geom(const GpuBuffer<std::uint8_t>& d_src,
-                       const GpuBuffer<std::uint8_t>& d_dst, int w, int h, int ch,
-                       const char* op) {
+inline void check_geom(const GpuBuffer<std::uint8_t>& d_src, const GpuBuffer<std::uint8_t>& d_dst,
+                       int w, int h, int ch, const char* op) {
     require(w > 0 && h > 0 && ch > 0, op);
     const std::size_t need = static_cast<std::size_t>(w) * h * ch;
     require(d_src.size() >= need && d_dst.size() >= need, op);
@@ -205,8 +202,8 @@ inline void flip_vertical(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::u
     CUDA_CHECK(cudaGetLastError());
 }
 
-inline void rotate(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::uint8_t>& d_dst,
-                   int width, int height, int channels, float theta, cudaStream_t stream = 0) {
+inline void rotate(const GpuBuffer<std::uint8_t>& d_src, GpuBuffer<std::uint8_t>& d_dst, int width,
+                   int height, int channels, float theta, cudaStream_t stream = 0) {
     detail::check_geom(d_src, d_dst, width, height, channels,
                        "rotate: bad dimensions or undersized device buffer");
     // Same std::cos/std::sin float calls as the CPU reference, so both paths
@@ -224,10 +221,9 @@ inline void resize(const GpuBuffer<std::uint8_t>& d_src, int src_w, int src_h,
                    cudaStream_t stream = 0) {
     detail::require(src_w > 0 && src_h > 0 && dst_w > 0 && dst_h > 0 && channels > 0,
                     "resize: dimensions must be positive");
-    detail::require(
-        d_src.size() >= static_cast<std::size_t>(src_w) * src_h * channels &&
-            d_dst.size() >= static_cast<std::size_t>(dst_w) * dst_h * channels,
-        "resize: device buffer smaller than the image");
+    detail::require(d_src.size() >= static_cast<std::size_t>(src_w) * src_h * channels &&
+                        d_dst.size() >= static_cast<std::size_t>(dst_w) * dst_h * channels,
+                    "resize: device buffer smaller than the image");
     const float sx = static_cast<float>(src_w) / static_cast<float>(dst_w);
     const float sy = static_cast<float>(src_h) / static_cast<float>(dst_h);
     const dim3 block(16, 16);
@@ -254,28 +250,28 @@ inline Image run_same_size_op(const Image& img, LaunchFn launch) {
 inline Image flip_horizontal(const Image& img) {
     detail::require(img.channels == 1 || img.channels == 3,
                     "flip_horizontal: image must have 1 or 3 channels");
-    return detail::run_same_size_op(img, [&](const GpuBuffer<std::uint8_t>& in,
-                                             GpuBuffer<std::uint8_t>& out) {
-        flip_horizontal(in, out, img.width, img.height, img.channels);
-    });
+    return detail::run_same_size_op(
+        img, [&](const GpuBuffer<std::uint8_t>& in, GpuBuffer<std::uint8_t>& out) {
+            flip_horizontal(in, out, img.width, img.height, img.channels);
+        });
 }
 
 inline Image flip_vertical(const Image& img) {
     detail::require(img.channels == 1 || img.channels == 3,
                     "flip_vertical: image must have 1 or 3 channels");
-    return detail::run_same_size_op(img, [&](const GpuBuffer<std::uint8_t>& in,
-                                             GpuBuffer<std::uint8_t>& out) {
-        flip_vertical(in, out, img.width, img.height, img.channels);
-    });
+    return detail::run_same_size_op(
+        img, [&](const GpuBuffer<std::uint8_t>& in, GpuBuffer<std::uint8_t>& out) {
+            flip_vertical(in, out, img.width, img.height, img.channels);
+        });
 }
 
 inline Image rotate(const Image& img, float theta) {
     detail::require(img.channels == 1 || img.channels == 3,
                     "rotate: image must have 1 or 3 channels");
-    return detail::run_same_size_op(img, [&](const GpuBuffer<std::uint8_t>& in,
-                                             GpuBuffer<std::uint8_t>& out) {
-        rotate(in, out, img.width, img.height, img.channels, theta);
-    });
+    return detail::run_same_size_op(
+        img, [&](const GpuBuffer<std::uint8_t>& in, GpuBuffer<std::uint8_t>& out) {
+            rotate(in, out, img.width, img.height, img.channels, theta);
+        });
 }
 
 inline Image resize(const Image& img, int dst_w, int dst_h) {

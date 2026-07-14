@@ -28,6 +28,8 @@
 // launch-overhead amortization without letting L2 replay a single hot input;
 // the wall column re-uploads and downloads every image.
 
+#include <omp.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -36,8 +38,6 @@
 #include <fstream>
 #include <string>
 #include <vector>
-
-#include <omp.h>
 
 #include "cuda_imgproc.hpp"
 
@@ -118,10 +118,12 @@ struct Row {
 std::vector<Row> g_rows;
 
 void print_row(const Row& r) {
-    std::printf("%-24s %-22s 1t %9.3f ±%7.3f | omp %9.3f ±%7.3f | gpu %8.4f ±%7.4f | wall %8.3f ±%7.3f  [ms]\n",
-                r.op.c_str(), r.resolution.c_str(), r.cpu_1t.median_ms, r.cpu_1t.stddev_ms,
-                r.omp.median_ms, r.omp.stddev_ms, r.gpu_kernel.median_ms,
-                r.gpu_kernel.stddev_ms, r.gpu_wall.median_ms, r.gpu_wall.stddev_ms);
+    std::printf(
+        "%-24s %-22s 1t %9.3f ±%7.3f | omp %9.3f ±%7.3f | gpu %8.4f ±%7.4f | wall %8.3f ±%7.3f  "
+        "[ms]\n",
+        r.op.c_str(), r.resolution.c_str(), r.cpu_1t.median_ms, r.cpu_1t.stddev_ms, r.omp.median_ms,
+        r.omp.stddev_ms, r.gpu_kernel.median_ms, r.gpu_kernel.stddev_ms, r.gpu_wall.median_ms,
+        r.gpu_wall.stddev_ms);
     std::fflush(stdout);
 }
 
@@ -207,8 +209,8 @@ void bench_resize() {
     Row r;
     r.op = "resize_bilinear";
     r.resolution = "4096x4096->1024x1024";
-    r.cpu_1t = time_host_ms(
-        [&] { cig::cpu::resize(img.data.data(), sw, sh, out.data(), dw, dh, ch); });
+    r.cpu_1t =
+        time_host_ms([&] { cig::cpu::resize(img.data.data(), sw, sh, out.data(), dw, dh, ch); });
     r.omp = time_host_ms(
         [&] { cig::cpu_omp::resize(img.data.data(), sw, sh, out.data(), dw, dh, ch); });
 
@@ -240,8 +242,7 @@ void bench_equalize(int w, int h) {
     d_in.copy_from_host(img.data.data(), n);
     // Kernel-only time covers the whole 3-launch algorithm (memset +
     // histogram + scan + remap) — that IS the op.
-    r.gpu_kernel =
-        time_gpu_kernel_ms([&] { cig::equalize_hist(d_in, d_out, n, d_hist, d_lut); });
+    r.gpu_kernel = time_gpu_kernel_ms([&] { cig::equalize_hist(d_in, d_out, n, d_hist, d_lut); });
     r.gpu_wall = time_host_ms([&] {
         d_in.copy_from_host(img.data.data(), n);
         cig::equalize_hist(d_in, d_out, n, d_hist, d_lut);
@@ -391,8 +392,8 @@ int main() try {
 #endif
 
     std::printf("device: %s | SMs: %d | mem clock: %.0f MHz | sm_%d%d | OpenMP threads: %d\n\n",
-                prop.name, prop.multiProcessorCount, mem_clock_khz / 1000.0, prop.major,
-                prop.minor, omp_get_max_threads());
+                prop.name, prop.multiProcessorCount, mem_clock_khz / 1000.0, prop.major, prop.minor,
+                omp_get_max_threads());
 
     const std::vector<int> sizes = {256, 512, 1024, 2048, 4096};
     for (int s : sizes) bench_rgb_to_gray(s, s);

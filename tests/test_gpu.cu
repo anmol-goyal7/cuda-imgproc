@@ -84,14 +84,12 @@ static void run_suite(int w, int h) {
     {
         const cig::Image want = cig::cpu::flip_horizontal(rgb);
         const cig::Image got = cig::flip_horizontal(rgb);
-        record("flip_horizontal", w, h, max_abs_diff(got.data, want.data), 0,
-               "bit-exact required");
+        record("flip_horizontal", w, h, max_abs_diff(got.data, want.data), 0, "bit-exact required");
     }
     {
         const cig::Image want = cig::cpu::flip_vertical(rgb);
         const cig::Image got = cig::flip_vertical(rgb);
-        record("flip_vertical", w, h, max_abs_diff(got.data, want.data), 0,
-               "bit-exact required");
+        record("flip_vertical", w, h, max_abs_diff(got.data, want.data), 0, "bit-exact required");
     }
     {
         const float theta = 0.5235988f;  // 30 degrees
@@ -130,8 +128,7 @@ static void run_suite(int w, int h) {
     }
     {
         cig::Image want(w, h, 1);
-        cig::cpu::convolve2d(gray_cpu.data.data(), want.data.data(), w, h,
-                             cig::Filter::sobel_x);
+        cig::cpu::convolve2d(gray_cpu.data.data(), want.data.data(), w, h, cig::Filter::sobel_x);
         const cig::Image got = cig::convolve2d(gray_cpu, cig::Filter::sobel_x, true);
         const int d = max_abs_diff(got.data, want.data);
         record("sobel_x tiled", w, h, d, 1, d == 0 ? "bit-exact" : "±1 fp contraction");
@@ -142,8 +139,7 @@ static void run_suite(int w, int h) {
         cig::Image want(w, h, 1);
         cig::cpu::equalize_hist(gray_cpu.data.data(), want.data.data(), gray_cpu.n_pixels());
         const cig::Image got = cig::equalize_hist(gray_cpu);
-        record("equalize_hist", w, h, max_abs_diff(got.data, want.data), 0,
-               "bit-exact required");
+        record("equalize_hist", w, h, max_abs_diff(got.data, want.data), 0, "bit-exact required");
     }
 }
 
@@ -163,13 +159,12 @@ static void test_gpu_buffer_semantics() {
 int main() {
     int dev = 0;
     cudaDeviceProp prop{};
-    if (cudaGetDevice(&dev) != cudaSuccess ||
-        cudaGetDeviceProperties(&prop, dev) != cudaSuccess) {
+    if (cudaGetDevice(&dev) != cudaSuccess || cudaGetDeviceProperties(&prop, dev) != cudaSuccess) {
         std::fprintf(stderr, "test_gpu: no usable CUDA device\n");
         return 2;
     }
-    std::printf("device: %s (%d SMs, sm_%d%d)\n\n", prop.name, prop.multiProcessorCount,
-                prop.major, prop.minor);
+    std::printf("device: %s (%d SMs, sm_%d%d)\n\n", prop.name, prop.multiProcessorCount, prop.major,
+                prop.minor);
 
     try {
         test_gpu_buffer_semantics();
@@ -198,8 +193,8 @@ int main() {
                 "-----------------------------------------------------------------------------"
                 "-----------------------");
     for (const Row& r : g_rows) {
-        std::printf("%-28s %-12s %-9d %-4d %-6s %s\n", r.op.c_str(), r.size.c_str(),
-                    r.max_diff, r.tol, r.max_diff <= r.tol ? "PASS" : "FAIL", r.note.c_str());
+        std::printf("%-28s %-12s %-9d %-4d %-6s %s\n", r.op.c_str(), r.size.c_str(), r.max_diff,
+                    r.tol, r.max_diff <= r.tol ? "PASS" : "FAIL", r.note.c_str());
     }
     std::printf("\n%s\n", g_all_pass ? "all GPU tests passed" : "GPU TESTS FAILED");
     return g_all_pass ? 0 : 1;
