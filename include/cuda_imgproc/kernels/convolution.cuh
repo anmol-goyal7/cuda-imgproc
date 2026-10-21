@@ -71,7 +71,8 @@ static __constant__ float c_filter[kMaxFilterSize * kMaxFilterSize];
 // per-SM limit, so occupancy is unaffected.
 template <int TILE = 16>
 static __global__ void convolve2d_tiled_kernel(const std::uint8_t* __restrict__ src,
-                                        std::uint8_t* __restrict__ dst, int w, int h, int k) {
+                                               std::uint8_t* __restrict__ dst, int w, int h,
+                                               int k) {
     constexpr int kMaxRadius = kMaxFilterSize / 2;
     __shared__ std::uint8_t tile[(TILE + 2 * kMaxRadius) * (TILE + 2 * kMaxRadius)];
 
