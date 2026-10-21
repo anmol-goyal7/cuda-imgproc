@@ -23,3 +23,6 @@ test_roundtrip.png
 *.nsys-rep
 *.ncu-rep
 compile_flags.txt
+
+# clangd / bear
+compile_commands.json

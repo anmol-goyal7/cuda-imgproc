@@ -59,7 +59,7 @@ Which memory tier each stage leans on, and why:
 Two suites, one contract: **the GPU must reproduce the CPU reference, not resemble it.**
 
 * `make test-cpu` (any machine) — handcrafted fixtures whose expected outputs are computed by hand in the comments (BT.601 luma values, a sharpen convolution done on paper, an equalization LUT derived bin by bin), plus structural properties (flips are involutions, rotate(π) equals flipping both axes, equalization flattens the CDF) and OpenMP-vs-single-thread byte equality.
-* `make test-gpu ARCH=sm_75` (GPU machine) — for every op, a seeded `std::mt19937` image (bit-identical on all platforms) goes through the CPU reference and the GPU kernel; outputs are compared with per-op tolerances at 256×256 and 1023×1021 (deliberately not multiples of the block size, so every boundary check earns its keep):
+* `make test-gpu ARCH=sm_75` (GPU machine) — for every op, a seeded `std::mt19937` image goes through the CPU reference and the GPU kernel; outputs are compared with per-op tolerances at 256×256 and 1023×1021 (deliberately not multiples of the block size, so every boundary check earns its keep):
 
 | tolerance | ops | reason |
 |---|---|---|
@@ -185,7 +185,7 @@ results/                       committed benchmark CSVs + generated summary.md
 
 * **Transfers dominate single-image latency.** Kernels are microseconds; PCIe copies are milliseconds. CUDA streams overlapping H2D/compute/D2H across a batch would hide most of that and is the natural next chapter.
 * **uint8 only, 1 or 3 channels, no strides/ROI.** Deliberate: format generality multiplies code without adding concepts. The Image-level API validates its inputs and throws on the wrong shape rather than reading out of bounds.
-* **32-bit indexing in the host wrappers.** Images are limited to 2³¹ pixels (histogram equalization: 2³²−1); the wrappers check and throw instead of silently wrapping. Nobody benchmarks 2-gigapixel PNGs, but the limit is now stated rather than lurking.
+* **32-bit indexing in the host wrappers.** Images are limited to 2³¹−1 pixels (histogram equalization: 2³²−1); the wrappers check and throw instead of silently wrapping. Nobody benchmarks 2-gigapixel PNGs, but the limit is now stated rather than lurking.
 * **Resize is plain bilinear.** Center-aligned sampling (the OpenCV/PIL convention), but downscales beyond ~2× still alias — only 4 source taps feed each output pixel. Area averaging is the standard fix and a natural extension.
 * **FP16 / Tensor Cores unexplored.** Convolution as WMMA matrix ops (or FP16x2 arithmetic) is the modern performance path and a planned extension.
 * **No Python bindings.** nanobind + a zero-copy PyTorch tensor interface would let the kernels drop into real training pipelines.

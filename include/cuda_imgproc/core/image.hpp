@@ -145,10 +145,11 @@ inline Image make_synthetic(int w, int h, int channels = 3, std::uint32_t seed =
     return img;
 }
 
-// Uniform pseudo-random image; the seeded workload for tests and benchmarks
-// (mt19937 is fully specified by the C++ standard, so the same seed produces
-// the same image on every platform — CPU reference and GPU kernel see
-// identical inputs everywhere).
+// Uniform pseudo-random image; the seeded workload for tests and benchmarks.
+// The CPU reference and the GPU kernel are always fed the same Image from one
+// call, so they see identical inputs. Across standard libraries the image can
+// differ: mt19937's output is fixed by the standard, but how
+// uniform_int_distribution maps it to [0, 255] is implementation-defined.
 inline Image random_image(int w, int h, int channels, std::uint32_t seed = 42) {
     Image img(w, h, channels);
     std::mt19937 rng(seed);
