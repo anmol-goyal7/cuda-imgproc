@@ -17,6 +17,7 @@
 #include <cuda_runtime.h>
 
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 
 #include "../core/cuda_check.cuh"
@@ -55,9 +56,12 @@ static __global__ void rgb_to_gray_kernel(const std::uint8_t* __restrict__ rgb,
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_pixels) return;  // grid is rounded up to whole blocks
 
-    const float r = rgb[3 * i + 0];
-    const float g = rgb[3 * i + 1];
-    const float b = rgb[3 * i + 2];
+    // 3*i in size_t: as an int it overflows past ~715M pixels, well inside
+    // the INT_MAX-pixel limit the wrappers allow.
+    const std::size_t p = 3 * static_cast<std::size_t>(i);
+    const float r = rgb[p + 0];
+    const float g = rgb[p + 1];
+    const float b = rgb[p + 2];
     const float y = fmaf(0.299f, r, fmaf(0.587f, g, 0.114f * b));
     gray[i] = static_cast<std::uint8_t>(y + 0.5f);  // round to nearest
 }
@@ -82,9 +86,10 @@ static __global__ void rgb_to_hsv_kernel(const std::uint8_t* __restrict__ rgb,
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_pixels) return;
 
-    const int r = rgb[3 * i + 0];
-    const int g = rgb[3 * i + 1];
-    const int b = rgb[3 * i + 2];
+    const std::size_t p = 3 * static_cast<std::size_t>(i);  // see rgb_to_gray_kernel
+    const int r = rgb[p + 0];
+    const int g = rgb[p + 1];
+    const int b = rgb[p + 2];
     const int v = r > g ? (r > b ? r : b) : (g > b ? g : b);
     const int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
     const int diff = v - mn;
@@ -111,9 +116,9 @@ static __global__ void rgb_to_hsv_kernel(const std::uint8_t* __restrict__ rgb,
         h8 = static_cast<std::uint8_t>(hh);
     }
 
-    hsv[3 * i + 0] = h8;
-    hsv[3 * i + 1] = s8;
-    hsv[3 * i + 2] = static_cast<std::uint8_t>(v);
+    hsv[p + 0] = h8;
+    hsv[p + 1] = s8;
+    hsv[p + 2] = static_cast<std::uint8_t>(v);
 }
 
 // ---------------------------------------------------------- host wrappers
