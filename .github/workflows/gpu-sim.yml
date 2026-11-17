@@ -1,0 +1,62 @@
+name: gpu-sim
+
+# Optional check. The hosted runners have no GPU, so this builds
+# tests/test_gpu.cu and runs it on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing, so it complements the Colab runs.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "include/**"
+      - "third_party/**"
+      - "tests/test_gpu.cu"
+      - "Makefile"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gpu:
+    name: test_gpu (CUDA 13.0 and simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@deff5781e8adfd83dec98dd5242dcbc96a564773 # v0.1.10
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      # The simulator runs PTX only and needs a shared CUDA runtime, so the
+      # Makefile's ARCH override is set to compute_90 (PTX only) plus
+      # --cudart shared; the Makefile itself is not changed.
+      - name: Build test_gpu
+        run: vgpu run --preload make bin/test_gpu ARCH="compute_90 --cudart shared"
+
+      # test_gpu compares every GPU op with its CPU reference using the
+      # per-op tolerances in tests/test_gpu.cu and exits non-zero on a
+      # mismatch. The guard also fails the job on a missing device, a
+      # simulator error, or a summary that is absent or incomplete.
+      - name: Run test_gpu on the simulated GPU
+        run: |
+          set -o pipefail
+          vgpu run ./bin/test_gpu 2>&1 | tee test.log
+          if grep -Eiq 'VirtualGPU error|no usable CUDA device|CUDA failure|skipped' test.log; then
+            echo "::error::GPU error or skipped test in the output"; exit 1
+          fi
+          grep -q '^device: .*H100' test.log || { echo "::error::H100 device line missing"; exit 1; }
+          grep -qx 'all GPU tests passed' test.log || { echo "::error::pass summary missing"; exit 1; }
+          if grep -Eq ' FAIL( |$)' test.log; then echo "::error::failing rows"; exit 1; fi
+          n=$(grep -Ec ' PASS( |$)' test.log)
+          echo "$n PASS rows"
+          [ "$n" -ge 10 ] || { echo "::error::too few result rows"; exit 1; }
